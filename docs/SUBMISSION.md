@@ -2,11 +2,11 @@
 
 ## Title
 
-GlassBox Alpha — Verifiable AI Options Agent
+GlassBox Alpha: Verifiable AI Options Agent
 
 ## Short description
 
-A paper-only autonomous options agent where AI can veto, but never change, a defined-risk trade.
+GlassBox Alpha is a paper-only autonomous options agent that lets AI veto a defined-risk SPY or QQQ trade, while deterministic code controls construction, risk, execution, and the audit trail.
 
 ## Team recruitment description
 
@@ -18,15 +18,13 @@ Building an autonomous AI options trading agent with explainable decisions and s
 
 ## Long description
 
-Most trading agents give an LLM too much authority: the model can invent a ticker, change position size, or talk its way around a guardrail. GlassBox Alpha inverts that design.
+GlassBox Alpha is a paper-only autonomous options trading agent built on Alpaca. It solves a specific problem in agentic trading: an AI model should contribute judgment without having unrestricted control over financial actions.
 
-Deterministic code reads completed five-minute Alpaca bars, constructs one exact SPY or QQQ defined-risk option candidate, fixes its contracts, size, price and maximum loss, and hashes it. An AI critic then receives only veto authority: `ALLOW` or `VETO`. It cannot change the candidate and it has no order tool. Invalid output, unavailable models, invented evidence or a changed candidate ID all fail closed.
+Completed five-minute Alpaca bars feed a deterministic strategy engine that constructs one exact SPY or QQQ trade. The code fixes the contracts, expiry, quantity, limit price, and maximum loss before the AI sees the proposal. A structured AI critic may only return ALLOW or VETO. It cannot change the trade or submit an order, and any timeout, invalid response, altered candidate ID, or unsupported evidence fails closed.
 
-An independent 32-check risk kernel validates the paper environment, account, market time, candidate identity, recomputed trade economics, signal strength, option level, loss limits, exposure, structure, DTE, quote freshness, liquidity and idempotency. Any failed check produces `ABSTAIN`; no order is sent.
+Before execution, an independent 32-check risk kernel recomputes the trade economics and verifies account identity, paper mode, market time, option structure, exposure, DTE, quote freshness, liquidity, position limits, drawdown, and idempotency. A failed check produces ABSTAIN. Approved orders can be submitted as atomic multi-leg limit orders through the official Alpaca CLI, while a deterministic supervisor manages whole-position exits.
 
-Approved entries use the official Alpaca CLI to submit one atomic MLeg limit order to the paper endpoint. A deterministic supervisor reconciles positions and closes the whole spread at profit target, loss limit, signal invalidation, maximum holding time or the closing-time buffer. Every event becomes a hash-chained Trade Passport containing evidence, AI verdict, all observed limits, order payload and result.
-
-The credential-free replay includes clean, AI-veto, stale-quote and wide-spread cases. Each case is labeled as replay data and produces a reproducible decision record.
+Every decision creates a hash-chained Trade Passport containing the market evidence, AI verdict, risk observations, order payload, and result. Judges can inspect credential-free replay scenarios for approval, AI veto, stale quotes, and excessive spreads. The result is not another prediction bot, but a verifiable decision system in which probabilistic AI advises and deterministic controls retain authority.
 
 ## One-page write-up
 
