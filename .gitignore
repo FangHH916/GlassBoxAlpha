@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+data/*.sqlite3
+data/*.sqlite3-*
+data/KILL_SWITCH
+site/node_modules/
+site/dist/
+site/.next/
+*.log
+
