@@ -15,16 +15,16 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   title: 'GlassBox Alpha — Auditable AI Options Agent',
-  description: 'A paper-only AI options agent with veto-only AI and deterministic risk controls.',
+  description: 'A paper-only options agent that freezes every trade before AI review, enforces two independent veto layers, and proves decisions with a SHA-256 audit chain.',
   openGraph: {
     title: 'GlassBox Alpha — Auditable AI Options Agent',
-    description: 'An AI options agent you can audit before it trades.',
+    description: 'Freeze before AI. Two independent vetoes. One verifiable decision chain.',
     images: [{ url: '/og.png', width: 1200, height: 630, alt: 'GlassBox Alpha social preview' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'GlassBox Alpha — Auditable AI Options Agent',
-    description: 'An AI options agent you can audit before it trades.',
+    description: 'Freeze before AI. Two independent vetoes. One verifiable decision chain.',
     images: ['/og.png'],
   },
 };

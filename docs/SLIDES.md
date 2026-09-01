@@ -12,9 +12,9 @@ Visual: generated cover card.
 - Orders are irreversible financial actions.
 - A prompt is not a risk control.
 
-## 3. Our inversion
+## 3. Our inversion: freeze before AI
 
-Code constructs and freezes the trade. AI may only `ALLOW` or `VETO`. Deterministic risk code retains final authority.
+Code constructs and hashes the exact trade before the model sees it. AI may only `ALLOW` or `VETO`. Deterministic risk code retains final authority.
 
 ## 4. Decision pipeline
 
@@ -28,9 +28,9 @@ Alpaca Data → Completed Bars → Candidate Factory → AI Critic → 29 Risk G
 - 0.50% equity maximum loss.
 - Atomic MLeg entry and exit.
 
-## 6. The risk wall
+## 6. Two independent vetoes
 
-Show a clean Trade Passport and the stale-quote failure beside it.
+Show AI VETO beside stale-quote failure. Either the critic or one of 29 deterministic checks can stop execution; neither can overrule the other.
 
 ## 7. Alpaca-native implementation
 
@@ -39,13 +39,13 @@ Show a clean Trade Passport and the stale-quote failure beside it.
 - Official CLI for MLeg orders.
 - Feed disclosure: Indicative vs OPRA.
 
-## 8. Auditability
+## 8. Verifiable, not merely explainable
 
-Each decision records evidence, immutable candidate, AI verdict, observed/limit/pass for every gate, payload, result, and previous hash.
+Each decision records evidence, immutable candidate, AI verdict, observed/limit/pass for every gate, payload, result, and previous hash. Recompute the chain live.
 
 ## 9. Live demo
 
-Run Clean Market, then Stale Quote. Emphasize `NO ORDER SENT`.
+Run Clean Market, AI Veto, then Stale Quote. Show one sanitized real Alpaca Paper order ID and emphasize that rejected scenarios produce `NO ORDER SENT`.
 
 ## 10. What comes next
 

@@ -1,12 +1,14 @@
 # 2-Minute Demo Script
 
-## 0:00–0:15 — Problem
+## 0:00–0:15 — Authority problem
 
 “Most AI trading demos give the model authority to invent the trade. GlassBox Alpha gives AI only one power: the power to say no.”
 
+“They ask whether AI can find a trade. We ask what AI must be structurally unable to do.”
+
 Show the hero and `PAPER ONLY · REPLAY` lock.
 
-## 0:15–0:35 — Immutable candidate
+## 0:15–0:35 — Freeze before AI
 
 Run **Clean Market**. Follow the pipeline from completed bars to a code-generated SPY bull call debit spread. Point out that symbol, expiry, strikes, quantity, limit debit and maximum loss are already fixed before the AI sees it.
 
@@ -25,13 +27,17 @@ Show the critic panel:
 
 Show the exact `$500` maximum loss and 12 visible key gates. Explain that the Python engine evaluates 29 checks, including account identity, market time, daily loss, drawdown, DTE, liquidity and quote age.
 
-## 1:15–1:35 — Prove refusal
+## 1:15–1:25 — Prove the AI veto
+
+Switch to **AI Veto** and run again. A positive signal still produces `ABSTAIN` because the critic can only reduce authority.
+
+## 1:25–1:40 — Prove the deterministic veto
 
 Switch to **Stale Quote**, run again, and show `ABSTAIN · NO ORDER SENT` plus the red Quote Freshness gate. Repeat quickly with **Wide Spread** if time permits.
 
 “Risk is not a paragraph in our README. It is the main interaction.”
 
-## 1:35–1:50 — Alpaca execution
+## 1:40–1:52 — Alpaca execution
 
 Show the terminal running:
 
@@ -42,11 +48,15 @@ glassbox-alpha run --symbol SPY --compact
 
 Explain that approved paper entries use the official Alpaca CLI as one atomic MLeg limit order, with `alpaca-py` for data and reconciliation. Do not expose credentials or a full account ID.
 
-## 1:50–2:00 — Audit and close
+## 1:52–2:00 — Verify, do not trust
 
-Show the audit hash bar and run `glassbox-alpha verify-audit`. End with:
+Click **Verify in browser**, show the audit hash bar and run `glassbox-alpha verify-audit`. End with:
 
 “GlassBox Alpha does not ask you to trust an agent. It shows you exactly why the agent was allowed to act.”
+
+## Required real-Paper insert
+
+Replace 8–12 seconds of replay footage with one sanitized Alpaca Paper order ID and its matching local Trade Passport. Never present a replay receipt as a real broker receipt.
 
 ## Recording checklist
 

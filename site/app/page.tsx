@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from 'react';
 
-type Scenario = 'clean' | 'stale' | 'wide';
+type Scenario = 'clean' | 'ai_veto' | 'stale' | 'wide';
+
+const passportPayload = JSON.stringify({
+  candidate_id: 'GBA-7D90A3F1', symbol: 'SPY', structure: 'bull_call_debit_spread',
+  quantity: 2, limit_debit: 2.5, max_loss: 500, critic: 'ALLOW',
+  risk_checks: 29, execution: 'REPLAY_ONLY',
+});
+const storedPassportHash = '23d770732cb4aa5e48b4515284713a2bde4486db6f3de4063683406b5fff7fbf';
 
 const baseGates = [
   ['Paper environment', 'Paper endpoint', 'paper', 'paper'],
@@ -28,8 +35,9 @@ export default function Home() {
   const [step, setStep] = useState(0);
   const [running, setRunning] = useState(false);
   const [hasRun, setHasRun] = useState(false);
+  const [hashStatus, setHashStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
 
-  const failedGate = scenario === 'stale' ? 'Quote freshness' : scenario === 'wide' ? 'Liquidity' : null;
+  const failedGate = scenario === 'ai_veto' ? 'AI critic' : scenario === 'stale' ? 'Quote freshness' : scenario === 'wide' ? 'Liquidity' : null;
   const approved = hasRun && !failedGate;
   const rejected = hasRun && Boolean(failedGate);
 
@@ -37,6 +45,7 @@ export default function Home() {
     const item = [...gate];
     if (gate[0] === 'Quote freshness' && scenario === 'stale') item[2] = '94 sec';
     if (gate[0] === 'Liquidity' && scenario === 'wide') item[2] = '18.4%';
+    if (gate[0] === 'AI critic' && scenario === 'ai_veto') item[2] = 'VETO';
     return item;
   }), [scenario]);
 
@@ -59,6 +68,16 @@ export default function Home() {
     setScenario(value);
     setStep(0);
     setHasRun(false);
+    setHashStatus('idle');
+  }
+
+  async function verifyReplayPassport() {
+    setHashStatus('checking');
+    const digest = await window.crypto.subtle.digest(
+      'SHA-256', new TextEncoder().encode(`GENESIS${passportPayload}`),
+    );
+    const actual = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    setHashStatus(actual === storedPassportHash ? 'valid' : 'invalid');
   }
 
   const verdict = running ? 'ANALYZING' : approved ? 'APPROVED' : rejected ? 'ABSTAIN' : 'READY';
@@ -86,6 +105,12 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="authorityStrip" aria-label="Core differentiators">
+        <div><span>01 · FREEZE</span><b>Code fixes the trade before AI sees it.</b><small>Symbol · strikes · quantity · price · max loss</small></div>
+        <div><span>02 · DOUBLE VETO</span><b>AI or any hard gate can stop execution.</b><small>Neither layer can overrule the other</small></div>
+        <div><span>03 · PROVE</span><b>Every decision links into a SHA-256 chain.</b><small>Inputs · verdict · limits · payload · result</small></div>
+      </section>
+
       <section className="ticker" aria-label="System summary">
         <div><span>MODE</span><b>REPLAY / PAPER-LOCKED</b></div>
         <div><span>ACCOUNT BASELINE</span><b>$100,000.00</b></div>
@@ -109,6 +134,7 @@ export default function Home() {
           <span>STRESS THE AGENT</span>
           <div role="group" aria-label="Replay scenario">
             <button className={scenario === 'clean' ? 'selected' : ''} onClick={() => changeScenario('clean')}>CLEAN MARKET</button>
+            <button className={scenario === 'ai_veto' ? 'selected' : ''} onClick={() => changeScenario('ai_veto')}>AI VETO</button>
             <button className={scenario === 'stale' ? 'selected' : ''} onClick={() => changeScenario('stale')}>STALE QUOTE</button>
             <button className={scenario === 'wide' ? 'selected' : ''} onClick={() => changeScenario('wide')}>WIDE SPREAD</button>
           </div>
@@ -148,8 +174,10 @@ export default function Home() {
           </article>
 
           <article className="criticPanel">
-            <div className="panelTitle"><span>03 · AI CRITIC</span><b className="allow">ALLOW</b></div>
-            <blockquote>“Trend and momentum agree. The candidate is defined-risk and its invalidation is explicit. I found no evidence-based reason to veto.”</blockquote>
+            <div className="panelTitle"><span>03 · AI CRITIC</span><b className={scenario === 'ai_veto' ? 'deny' : 'allow'}>{scenario === 'ai_veto' ? 'VETO' : 'ALLOW'}</b></div>
+            <blockquote>{scenario === 'ai_veto'
+              ? '“The signal is positive, but RSI is stretched and the evidence does not justify opening risk. Veto.”'
+              : '“Trend and momentum agree. The candidate is defined-risk and its invalidation is explicit. I found no evidence-based reason to veto.”'}</blockquote>
             <dl>
               <div><dt>AUTHORITY</dt><dd>Veto only</dd></div>
               <div><dt>CAN CHANGE CONTRACT?</dt><dd>No</dd></div>
@@ -159,6 +187,27 @@ export default function Home() {
             <p>Invalidated if the completed-bar signal enters neutral or reverses direction.</p>
           </article>
         </div>
+
+        <section className="executionProof" aria-label="Bounded execution lifecycle">
+          <div className="proofTitle">
+            <div><span className="label">05 · BOUNDED EXECUTION</span><h3>One frozen candidate. One atomic order. One whole-spread exit.</h3></div>
+            <b>REPLAY · EXPECTED PAPER PATH</b>
+          </div>
+          <div className="lifecycle">
+            {[
+              ['CANDIDATE FROZEN', '7d90a3f1…', true],
+              ['AI VERDICT', scenario === 'ai_veto' ? 'VETO' : 'ALLOW', scenario !== 'ai_veto'],
+              ['RISK KERNEL', failedGate ? `BLOCK · ${failedGate}` : '29 / 29 PASS', !failedGate],
+              ['ATOMIC MLEG', failedGate ? 'NOT CALLED' : 'PREVIEW PAYLOAD', !failedGate],
+              ['EXIT SUPERVISOR', failedGate ? 'NO POSITION' : '+35% · −25% · TIME', !failedGate],
+            ].map(([title, value, passed]) => (
+              <div className={`lifeStep ${hasRun && !passed ? 'blocked' : ''}`} key={String(title)}>
+                <i>{hasRun ? (passed ? '✓' : '×') : '·'}</i><span>{title}</span><b>{hasRun ? value : 'WAITING'}</b>
+              </div>
+            ))}
+          </div>
+          <p>No broker receipt is fabricated in replay. In armed Paper mode, the passport records the Alpaca order ID, client order ID, status and timestamps.</p>
+        </section>
 
         <div className="tradeStrip">
           <div><span>BUY TO OPEN</span><b>SPY 18 SEP 666 CALL</b><small>Δ +0.55 · OI 1,260</small></div>
@@ -189,9 +238,31 @@ export default function Home() {
 
         <div className="auditBar">
           <div><span>AUDIT CHAIN</span><b>VALID · 7 RECORDS</b></div>
-          <div><span>RECORD HASH</span><code>8d7a9f…c41e</code></div>
-          <div><span>PREVIOUS HASH</span><code>0fa291…d73b</code></div>
+          <div><span>RECORD HASH</span><code>23d770…f7fbf</code></div>
+          <div><span>PREVIOUS HASH</span><code>GENESIS</code></div>
           <div><span>EXECUTION</span><b>NO ORDER IN REPLAY</b></div>
+        </div>
+        <div className="verifyBar">
+          <div><span>REPLAY FIXTURE INTEGRITY</span><code>SHA256(previous_hash + canonical_payload)</code></div>
+          <button type="button" onClick={verifyReplayPassport} disabled={hashStatus === 'checking'}>
+            {hashStatus === 'idle' ? 'VERIFY IN BROWSER →' : hashStatus === 'checking' ? 'CHECKING…' : hashStatus === 'valid' ? '✓ HASH MATCHES' : '× TAMPER DETECTED'}
+          </button>
+        </div>
+      </section>
+
+      <section className="evidenceSection">
+        <div className="evidenceIntro">
+          <span className="eyebrow">NOT ANOTHER PREDICTION BOT</span>
+          <h2>Authority is the product.</h2>
+          <p>GlassBox Alpha is differentiated by what the model is structurally unable to do. Safety does not depend on a persuasive prompt.</p>
+        </div>
+        <div className="evidenceGrid">
+          <article><span>AI AUTHORITY</span><b>VETO ONLY</b><p>No order tool. No mutable quantity, contract or price.</p></article>
+          <article><span>FAILURE POLICY</span><b>FAIL CLOSED</b><p>Timeout, invalid JSON or changed candidate ID becomes VETO.</p></article>
+          <article><span>EXECUTION</span><b>ATOMIC MLEG</b><p>Defined-risk entry and whole-spread exit. No legging.</p></article>
+          <article><span>PROOF</span><b>HASH CHAIN</b><p>Recompute integrity from the canonical decision payload.</p></article>
+          <article><span>QUALITY</span><b>15 / 15</b><p>Safety, audit, payload and failure-path tests passing.</p></article>
+          <article><span>DISCLOSURE</span><b>HONEST DEMO</b><p>Replay and Paper evidence are explicitly separated.</p></article>
         </div>
       </section>
 

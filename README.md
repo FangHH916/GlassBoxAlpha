@@ -244,3 +244,5 @@ Tests cover paper-only configuration, the execution interlock, candidate constru
 - The participant must personally create and preserve the fresh competition paper account, supply its ID, verify tax/eligibility requirements, publish the repository, and submit the final links.
 
 Official sources and known rule ambiguities are recorded in [docs/RULES_CHECKLIST.md](docs/RULES_CHECKLIST.md).
+
+Before publishing, use [docs/JUDGE_SCORECARD.md](docs/JUDGE_SCORECARD.md) to separate implemented safeguards from evidence that still requires a real competition Paper account.
