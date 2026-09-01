@@ -2,7 +2,7 @@
 
 ## Title
 
-GlassBox Alpha — An AI Options Agent You Can Audit Before It Trades
+GlassBox Alpha — Verifiable AI Options Agent
 
 ## Short description
 
@@ -22,11 +22,11 @@ Most trading agents give an LLM too much authority: the model can invent a ticke
 
 Deterministic code reads completed five-minute Alpaca bars, constructs one exact SPY or QQQ defined-risk option candidate, fixes its contracts, size, price and maximum loss, and hashes it. An AI critic then receives only veto authority: `ALLOW` or `VETO`. It cannot change the candidate and it has no order tool. Invalid output, unavailable models, invented evidence or a changed candidate ID all fail closed.
 
-An independent 29-check risk kernel then validates paper environment, dedicated competition account, market time, candidate identity, signal strength, option level, daily loss, peak drawdown, total exposure, maximum loss, defined-risk structure, DTE, quote freshness, liquidity and idempotency. Any failure becomes an explainable `ABSTAIN` and no order is sent.
+An independent 32-check risk kernel validates the paper environment, account, market time, candidate identity, recomputed trade economics, signal strength, option level, loss limits, exposure, structure, DTE, quote freshness, liquidity and idempotency. Any failed check produces `ABSTAIN`; no order is sent.
 
 Approved entries use the official Alpaca CLI to submit one atomic MLeg limit order to the paper endpoint. A deterministic supervisor reconciles positions and closes the whole spread at profit target, loss limit, signal invalidation, maximum holding time or the closing-time buffer. Every event becomes a hash-chained Trade Passport containing evidence, AI verdict, all observed limits, order payload and result.
 
-The public judge demo requires no credentials. It includes clean, stale-quote and wide-spread replays so judges can see the agent refuse unsafe trades instead of merely reading about risk controls.
+The credential-free replay includes clean, AI-veto, stale-quote and wide-spread cases. Each case is labeled as replay data and produces a reproducible decision record.
 
 ## One-page write-up
 

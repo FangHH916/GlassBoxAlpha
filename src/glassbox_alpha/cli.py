@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print(json.dumps(to_primitive(report), indent=2, ensure_ascii=False))
-            return 0 if report.status != "error" else 1
+            return 0 if not report.status.startswith("error") else 1
         if args.command == "watch":
             interval = max(30, args.interval)
             completed = 0

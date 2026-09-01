@@ -15,13 +15,13 @@ class Critic(Protocol):
 
 
 class DeterministicCritic:
-    """Reproducible offline critic used for replay and judge demos."""
+    """Reproducible offline critic used for credential-free replay."""
 
     def review(self, proposal: TradeProposal, features: MarketFeatures) -> CriticVerdict:
         flags: list[str] = []
         if abs(features.signal_score) < 0.45:
             flags.append("signal_below_offline_critic_threshold")
-        if features.realized_vol_20 > 0.65:
+        if features.realized_vol_20bar > 0.65:
             flags.append("extreme_realized_volatility")
         if proposal.direction.value != features.baseline_stance.value:
             flags.append("proposal_conflicts_with_deterministic_regime")
@@ -145,8 +145,8 @@ class OpenAICritic:
                 f"bars:{features.symbol}:{features.timestamp.isoformat()}",
                 f"candidate:{proposal.proposal_id}",
             }
-            if not evidence_ids.issubset(allowed_ids):
-                raise ValueError("critic cited evidence that was not supplied")
+            if evidence_ids != allowed_ids:
+                raise ValueError("critic evidence IDs were missing or not supplied")
             return CriticVerdict(
                 candidate_id=proposal.proposal_id,
                 verdict=parsed["verdict"],
@@ -157,7 +157,17 @@ class OpenAICritic:
                 source="openai_responses",
                 model=self.model,
             )
-        except (OSError, TimeoutError, ValueError, KeyError, json.JSONDecodeError, urllib.error.HTTPError) as exc:
+        except (
+            OSError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+            KeyError,
+            IndexError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            urllib.error.HTTPError,
+        ) as exc:
             return CriticVerdict(
                 candidate_id=proposal.proposal_id,
                 verdict="VETO",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 
@@ -129,12 +130,27 @@ class Settings:
             raise ValueError("USE_OPENAI=true requires OPENAI_API_KEY")
         if self.fast_ema >= self.slow_ema:
             raise ValueError("FAST_EMA must be smaller than SLOW_EMA")
+        if self.fast_ema < 2 or self.slow_ema < 3:
+            raise ValueError("EMA periods are too short")
+        if not self.underlyings or any(not item.isalpha() for item in self.underlyings):
+            raise ValueError("UNDERLYINGS must contain alphabetic symbols")
         if not 0 < self.risk_per_trade_pct <= self.max_option_exposure_pct <= 0.25:
             raise ValueError("Risk percentages are invalid or unsafe")
         if not 0.5 <= self.min_confidence <= 1:
             raise ValueError("MIN_CONFIDENCE must be between 0.5 and 1")
         if self.min_dte < 1 or self.max_dte < self.min_dte:
             raise ValueError("DTE range is invalid")
+        if not 0 < self.min_signal_score <= 1:
+            raise ValueError("MIN_SIGNAL_SCORE must be between 0 and 1")
+        if not 0 < self.max_quote_spread_pct <= 0.5:
+            raise ValueError("MAX_QUOTE_SPREAD_PCT must be between 0 and 0.5")
+        if self.max_quote_age_seconds <= 0 or self.max_data_age_seconds <= 0:
+            raise ValueError("Data freshness limits must be positive")
+        if min(self.max_trades_per_day, self.max_positions, self.max_contracts_per_trade) < 1:
+            raise ValueError("Trade, position, and contract limits must be positive")
+        competition_start = datetime.fromisoformat(self.competition_start_utc.replace("Z", "+00:00"))
+        if competition_start.tzinfo is None:
+            raise ValueError("COMPETITION_START_UTC must include a timezone")
         if self.alpaca_execution_backend not in {"cli", "sdk"}:
             raise ValueError("ALPACA_EXECUTION_BACKEND must be 'cli' or 'sdk'")
 

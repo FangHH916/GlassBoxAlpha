@@ -19,7 +19,7 @@ deterministic candidate factory
         ↓
 AI critic (ALLOW / VETO only)
         ↓
-29-check deterministic risk kernel
+32-check deterministic risk kernel
         ↓
 official Alpaca CLI → paper endpoint only
         ↓
@@ -33,6 +33,7 @@ hash-chained Trade Passport
 - Only long options and atomic call/put debit verticals are allowed.
 - Live trading is intentionally absent from the codebase.
 - Replay and preview cannot submit orders.
+- An unknown broker response engages the kill switch and requires reconciliation before another entry.
 - Every decision persists its inputs, critic result, risk checks, result, and previous-record hash.
 
 ## Competition compliance
@@ -76,7 +77,7 @@ Expected replay result:
 }
 ```
 
-Run the credential-free judge demo:
+Run the credential-free decision replay:
 
 ```powershell
 cd site
@@ -84,7 +85,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Switch between Clean Market, Stale Quote, and Wide Spread to demonstrate positive approval and fail-closed abstention.
+Open `http://localhost:3000`. Switch among Clean Market, Stale Quote, Wide Spread, and AI Veto to inspect approval and fail-closed outcomes.
 
 ## Connect read-only Alpaca paper data
 
@@ -223,6 +224,7 @@ Local API routes:
 - `POST /api/kill-switch` with `{"engaged":true}`
 
 The local API binds to `127.0.0.1` by default and cannot alter execution mode.
+It refuses to start while the paper-order interlock is unlocked.
 
 ## Tests
 

@@ -43,6 +43,11 @@ TRADE PASSPORT
 8. A debit vertical opens and closes as one MLeg; it is never intentionally legged.
 9. A close may reduce risk even while the new-entry kill switch is engaged, but it still requires the paper execution interlock.
 10. The broker is the source of truth for positions after every restart.
+11. Stored account baselines and high-water marks are namespaced by the masked account identity.
+12. Exit automation requires exact contract symbols, directions, and quantities.
+13. Maximum loss and spread payoff are recomputed independently before approval.
+14. An ambiguous entry or exit response engages the kill switch and requires broker reconciliation.
+15. The local control API cannot start while paper-order execution is unlocked.
 
 ## Components
 
@@ -65,4 +70,3 @@ TRADE PASSPORT
 - **Secret disclosure:** public site is replay-only; local API masks account ID; `.env` and databases are ignored.
 - **Partial/external position changes:** supervisor refuses to manufacture a closing vertical when only part of the expected structure is present.
 - **Audit tampering:** each record hash commits to the prior hash and canonical JSON payload.
-

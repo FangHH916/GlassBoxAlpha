@@ -25,11 +25,11 @@ def deterministic_thesis(features: MarketFeatures) -> ResearchThesis:
     trend_pct = (features.ema_fast / features.ema_slow - 1) * 100 if features.ema_slow else 0.0
     catalysts = [
         f"Fast/slow EMA spread is {trend_pct:+.2f}%",
-        f"Five-period momentum is {features.momentum_5d * 100:+.2f}%",
+        f"Five-bar momentum is {features.momentum_5bar * 100:+.2f}%",
         f"RSI(14) is {features.rsi_14:.1f}",
     ]
     risks = [
-        f"Annualized realized volatility estimate is {features.realized_vol_20 * 100:.1f}%",
+        f"20-bar annualized realized volatility is {features.realized_vol_20bar * 100:.1f}%",
         "Short competition window makes P&L statistically noisy",
         "Indicative options data may differ from the paper matching NBBO",
     ]

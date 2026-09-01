@@ -13,7 +13,7 @@ Use this as the final submission gate. Do not claim evidence that is not visible
 
 - Public repository opens without authentication.
 - Public demo opens without credentials.
-- Fifteen tests pass from a clean checkout.
+- Twenty-four tests pass from a clean checkout.
 - One sanitized Alpaca Paper order ID matches a Trade Passport.
 - One complete position exit or a clearly labeled recorded exit fixture is shown.
 - Browser hash verification and CLI chain verification both pass.

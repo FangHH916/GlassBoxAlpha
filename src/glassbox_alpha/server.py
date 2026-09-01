@@ -12,6 +12,9 @@ from .models import to_primitive
 def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> None:
     """Serve a small local control API. It never changes execution mode at runtime."""
 
+    if engine.settings.paper_execution_unlocked:
+        raise PermissionError("The local API is disabled while paper-order execution is unlocked")
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "GlassBoxAlpha/0.1"
 
@@ -89,4 +92,3 @@ def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> N
         pass
     finally:
         server.server_close()
-

@@ -70,8 +70,8 @@ class DemoBroker:
         )
 
     def get_bars(self, symbol: str, limit: int = 120) -> list[Bar]:
-        if self._cycles:
-            self._now += timedelta(minutes=5)
+        current = datetime.now(timezone.utc).replace(microsecond=0)
+        self._now = max(current, self._now + timedelta(minutes=5)) if self._cycles else current
         self._cycles += 1
         rng = random.Random(self.seed + sum(ord(char) for char in symbol))
         base = 640.0 if symbol == "SPY" else 580.0

@@ -134,7 +134,7 @@ class AuditStore:
             row = connection.execute(
                 """
                 SELECT 1 FROM decisions
-                WHERE proposal_id = ? AND status = 'submitted_paper'
+                WHERE proposal_id = ? AND status IN ('submitted_paper', 'error_execution_unknown')
                 LIMIT 1
                 """,
                 (proposal_id,),
@@ -161,10 +161,10 @@ class AuditStore:
             ).fetchone()
         return int(row["total"])
 
-    def update_high_watermark(self, equity: float) -> float:
-        current = self.get_runtime_float("high_watermark", equity)
+    def update_high_watermark(self, equity: float, key: str = "high_watermark") -> float:
+        current = self.get_runtime_float(key, equity)
         high = max(current, equity)
-        self.set_runtime("high_watermark", str(high))
+        self.set_runtime(key, str(high))
         return high
 
     def get_runtime_float(self, key: str, default: float) -> float:

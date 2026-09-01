@@ -42,9 +42,9 @@ class MarketFeatures:
     ema_fast: float
     ema_slow: float
     rsi_14: float
-    momentum_5d: float
-    realized_vol_20: float
-    atr_pct_14d: float
+    momentum_5bar: float
+    realized_vol_20bar: float
+    atr_pct_14bar: float
     signal_score: float
     data_age_seconds: float
     baseline_stance: Stance

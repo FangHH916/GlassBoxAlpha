@@ -7,9 +7,9 @@ type Scenario = 'clean' | 'ai_veto' | 'stale' | 'wide';
 const passportPayload = JSON.stringify({
   candidate_id: 'GBA-7D90A3F1', symbol: 'SPY', structure: 'bull_call_debit_spread',
   quantity: 2, limit_debit: 2.5, max_loss: 500, critic: 'ALLOW',
-  risk_checks: 29, execution: 'REPLAY_ONLY',
+  risk_checks: 32, execution: 'REPLAY_ONLY',
 });
-const storedPassportHash = '23d770732cb4aa5e48b4515284713a2bde4486db6f3de4063683406b5fff7fbf';
+const storedPassportHash = '02d61a36fe9850156149a1c90eb2064ef4fcbd8777b7540dc4a4bca01e6eac21';
 
 const baseGates = [
   ['Paper environment', 'Paper endpoint', 'paper', 'paper'],
@@ -99,9 +99,9 @@ export default function Home() {
         <p className="lede">AI may approve or veto. It can never invent a ticker, change a strike, increase size, or bypass the deterministic risk kernel.</p>
         <div className="heroActions">
           <button className="runButton" type="button" onClick={runReplay} disabled={running}>
-            <span>{running ? 'RUNNING 29 RISK GATES' : 'RUN DECISION REPLAY'}</span><b>{running ? '···' : '→'}</b>
+            <span>{running ? 'RUNNING 32 RISK GATES' : 'RUN DECISION REPLAY'}</span><b>{running ? '···' : '→'}</b>
           </button>
-          <span className="runHint">No credentials. No orders.<br />Deterministic judge demo.</span>
+          <span className="runHint">No credentials. No orders.<br />Credential-free replay.</span>
         </div>
       </section>
 
@@ -146,7 +146,7 @@ export default function Home() {
             ['01', 'MARKET', 'Completed 5m bars'],
             ['02', 'CANDIDATE', 'Defined-risk vertical'],
             ['03', 'AI CRITIC', 'ALLOW / VETO only'],
-            ['04', 'RISK KERNEL', '29 hard gates'],
+            ['04', 'RISK KERNEL', '32 hard gates'],
             ['05', 'ALPACA CLI', 'Paper execution'],
           ].map(([number, title, note], index) => (
             <div className="flowItem" key={number}>
@@ -197,7 +197,7 @@ export default function Home() {
             {[
               ['CANDIDATE FROZEN', '7d90a3f1…', true],
               ['AI VERDICT', scenario === 'ai_veto' ? 'VETO' : 'ALLOW', scenario !== 'ai_veto'],
-              ['RISK KERNEL', failedGate ? `BLOCK · ${failedGate}` : '29 / 29 PASS', !failedGate],
+              ['RISK KERNEL', failedGate ? `BLOCK · ${failedGate}` : '32 / 32 PASS', !failedGate],
               ['ATOMIC MLEG', failedGate ? 'NOT CALLED' : 'PREVIEW PAYLOAD', !failedGate],
               ['EXIT SUPERVISOR', failedGate ? 'NO POSITION' : '+35% · −25% · TIME', !failedGate],
             ].map(([title, value, passed]) => (
@@ -221,7 +221,7 @@ export default function Home() {
 
         <div className="riskHeader">
           <div><span className="label">04 · DETERMINISTIC RISK WALL</span><h3>{rejected ? `Blocked by ${failedGate}` : 'Every failed gate forces ABSTAIN.'}</h3></div>
-          <div><b>{rejected ? '11 / 12' : '12 / 12'}</b><span>KEY GATES PASSED<br />29 CHECKS IN ENGINE</span></div>
+          <div><b>{rejected ? '11 / 12' : '12 / 12'}</b><span>KEY GATES PASSED<br />32 CHECKS IN ENGINE</span></div>
         </div>
         <div className="gateGrid">
           {gates.map(([name, note, observed, limit], index) => {
@@ -237,8 +237,8 @@ export default function Home() {
         </div>
 
         <div className="auditBar">
-          <div><span>AUDIT CHAIN</span><b>VALID · 7 RECORDS</b></div>
-          <div><span>RECORD HASH</span><code>23d770…f7fbf</code></div>
+          <div><span>AUDIT RECORD</span><b>REPLAY FIXTURE</b></div>
+          <div><span>RECORD HASH</span><code>02d61a…e6eac21</code></div>
           <div><span>PREVIOUS HASH</span><code>GENESIS</code></div>
           <div><span>EXECUTION</span><b>NO ORDER IN REPLAY</b></div>
         </div>
@@ -252,16 +252,16 @@ export default function Home() {
 
       <section className="evidenceSection">
         <div className="evidenceIntro">
-          <span className="eyebrow">NOT ANOTHER PREDICTION BOT</span>
-          <h2>Authority is the product.</h2>
-          <p>GlassBox Alpha is differentiated by what the model is structurally unable to do. Safety does not depend on a persuasive prompt.</p>
+          <span className="eyebrow">DESIGN BOUNDARY</span>
+          <h2>A decision record, not a forecast.</h2>
+          <p>The model reviews a fixed candidate. It cannot change the order or bypass a failed check.</p>
         </div>
         <div className="evidenceGrid">
           <article><span>AI AUTHORITY</span><b>VETO ONLY</b><p>No order tool. No mutable quantity, contract or price.</p></article>
           <article><span>FAILURE POLICY</span><b>FAIL CLOSED</b><p>Timeout, invalid JSON or changed candidate ID becomes VETO.</p></article>
           <article><span>EXECUTION</span><b>ATOMIC MLEG</b><p>Defined-risk entry and whole-spread exit. No legging.</p></article>
           <article><span>PROOF</span><b>HASH CHAIN</b><p>Recompute integrity from the canonical decision payload.</p></article>
-          <article><span>QUALITY</span><b>15 / 15</b><p>Safety, audit, payload and failure-path tests passing.</p></article>
+          <article><span>TESTS</span><b>24 / 24</b><p>Safety, audit, payload and failure-path tests passing.</p></article>
           <article><span>DISCLOSURE</span><b>HONEST DEMO</b><p>Replay and Paper evidence are explicitly separated.</p></article>
         </div>
       </section>

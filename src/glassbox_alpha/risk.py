@@ -52,8 +52,20 @@ class RiskKernel:
         add("unique_candidate", "Idempotency", not duplicate, "A candidate may be submitted only once.", duplicate, False)
         add("critic_verdict", "AI critic", critic.verdict == "ALLOW", "AI has veto-only authority.", critic.verdict, "ALLOW")
         add("critic_identity", "Immutable candidate", critic.candidate_id == proposal.proposal_id, "Critic cannot modify the candidate.", critic.candidate_id, proposal.proposal_id)
+        symbol_ok = bool(proposal.legs) and proposal.underlying == features.symbol and all(
+            leg.contract.underlying == features.symbol for leg in proposal.legs
+        )
+        add("candidate_symbol", "Candidate symbol", symbol_ok, "The proposal and every leg must match the feature symbol.", proposal.underlying, features.symbol)
         aligned = proposal.direction is features.baseline_stance and proposal.direction is not Stance.NEUTRAL
         add("regime_alignment", "Signal alignment", aligned, "Candidate direction must equal the deterministic regime.", proposal.direction.value, features.baseline_stance.value)
+        expected_option_type = OptionType.CALL if proposal.direction is Stance.BULLISH else OptionType.PUT
+        direction_ok = (
+            proposal.direction is not Stance.NEUTRAL
+            and proposal.thesis.stance is proposal.direction
+            and bool(proposal.legs)
+            and all(leg.contract.option_type is expected_option_type for leg in proposal.legs)
+        )
+        add("direction_contract", "Directional contract", direction_ok, "Bullish candidates use calls and bearish candidates use puts.", expected_option_type.value, expected_option_type.value)
         signal_ok = abs(features.signal_score) >= self.settings.min_signal_score
         add("signal_strength", "Signal strength", signal_ok, "Weak evidence produces abstention.", round(abs(features.signal_score), 3), self.settings.min_signal_score)
         confidence_ok = proposal.thesis.confidence >= self.settings.min_confidence
@@ -76,9 +88,20 @@ class RiskKernel:
         add("portfolio_risk", "Portfolio risk", total_after <= exposure_limit, "Existing option exposure plus max loss stays capped.", round(total_after, 2), round(exposure_limit, 2))
         add("contract_count", "Contract count", 1 <= proposal.quantity <= self.settings.max_contracts_per_trade, "Contracts must be a small positive integer.", proposal.quantity, self.settings.max_contracts_per_trade)
 
+        expected_loss = round(proposal.limit_debit * 100 * proposal.quantity, 2)
+        if len(proposal.legs) == 2:
+            width = abs(proposal.legs[0].contract.strike - proposal.legs[1].contract.strike)
+            expected_profit = round((width - proposal.limit_debit) * 100 * proposal.quantity, 2)
+            economics_ok = abs(proposal.max_loss - expected_loss) <= 0.01 and (
+                proposal.max_profit is not None and abs(proposal.max_profit - expected_profit) <= 0.01
+            )
+        else:
+            economics_ok = abs(proposal.max_loss - expected_loss) <= 0.01 and proposal.max_profit is None
+        add("economic_integrity", "Recomputed economics", economics_ok, "Risk is recomputed from debit, width, and quantity instead of trusting declared values.", proposal.max_loss, expected_loss)
+
         structure_ok, structure_detail = self._defined_risk_structure(proposal)
         add("defined_risk", "Defined-risk options only", structure_ok, structure_detail, proposal.structure, "long option or debit vertical")
-        dtes = [leg.contract.dte for leg in proposal.legs]
+        dtes = [(leg.contract.expiration - current.date()).days for leg in proposal.legs]
         dte_ok = bool(dtes) and all(self.settings.min_dte <= dte <= self.settings.max_dte for dte in dtes)
         add("dte", "Expiration window", dte_ok, "No 0DTE or near-expiry assignment risk.", min(dtes) if dtes else None, f"{self.settings.min_dte}-{self.settings.max_dte}")
         quote_ages = [max(0.0, (current - self._utc(leg.contract.quote_timestamp)).total_seconds()) for leg in proposal.legs]
@@ -117,7 +140,12 @@ class RiskKernel:
             return False, "Debit and maximum loss must both be positive."
         if len(proposal.legs) == 1:
             only = proposal.legs[0]
-            return (only.action is LegAction.BUY_TO_OPEN, "A single leg must be a long option.")
+            valid = (
+                only.action is LegAction.BUY_TO_OPEN
+                and only.ratio == 1
+                and only.contract.underlying == proposal.underlying
+            )
+            return valid, "A single leg must be a 1:1 long option on the proposal underlying."
         if len(proposal.legs) != 2:
             return False, "Only one- or two-leg defined-risk structures are allowed."
         long_leg, short_leg = proposal.legs
@@ -126,7 +154,11 @@ class RiskKernel:
             and long_leg.contract.expiration == short_leg.contract.expiration
             and long_leg.contract.option_type is short_leg.contract.option_type
         )
-        actions_ok = long_leg.action is LegAction.BUY_TO_OPEN and short_leg.action is LegAction.SELL_TO_OPEN
+        actions_ok = (
+            long_leg.action is LegAction.BUY_TO_OPEN
+            and short_leg.action is LegAction.SELL_TO_OPEN
+            and long_leg.ratio == short_leg.ratio == 1
+        )
         if long_leg.contract.option_type is OptionType.CALL:
             ordered = long_leg.contract.strike < short_leg.contract.strike
         else:

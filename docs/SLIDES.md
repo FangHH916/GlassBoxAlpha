@@ -4,7 +4,7 @@
 
 An AI options agent you can audit before it trades.
 
-Visual: generated cover card.
+Visual: actual decision-passport interface.
 
 ## 2. The authority problem
 
@@ -18,7 +18,7 @@ Code constructs and hashes the exact trade before the model sees it. AI may only
 
 ## 4. Decision pipeline
 
-Alpaca Data → Completed Bars → Candidate Factory → AI Critic → 29 Risk Gates → Alpaca CLI → Reconciliation → Exit Supervisor.
+Alpaca Data → Completed Bars → Candidate Factory → AI Critic → 32 Risk Gates → Alpaca CLI → Reconciliation → Exit Supervisor.
 
 ## 5. Defined-risk strategy
 
@@ -30,7 +30,7 @@ Alpaca Data → Completed Bars → Candidate Factory → AI Critic → 29 Risk G
 
 ## 6. Two independent vetoes
 
-Show AI VETO beside stale-quote failure. Either the critic or one of 29 deterministic checks can stop execution; neither can overrule the other.
+Show AI VETO beside stale-quote failure. Either the critic or one of 32 deterministic checks can stop execution; neither can overrule the other.
 
 ## 7. Alpaca-native implementation
 
@@ -43,7 +43,7 @@ Show AI VETO beside stale-quote failure. Either the critic or one of 29 determin
 
 Each decision records evidence, immutable candidate, AI verdict, observed/limit/pass for every gate, payload, result, and previous hash. Recompute the chain live.
 
-## 9. Live demo
+## 9. Recorded walkthrough
 
 Run Clean Market, AI Veto, then Stale Quote. Show one sanitized real Alpaca Paper order ID and emphasize that rejected scenarios produce `NO ORDER SENT`.
 

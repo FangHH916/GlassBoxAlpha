@@ -10,7 +10,7 @@ from .broker import Broker
 from .config import Settings
 from .critic import Critic
 from .indicators import build_features
-from .models import AccountState, CycleReport, MarketFeatures, proposal_from_primitive, to_primitive
+from .models import AccountState, CycleReport, MarketFeatures, TradeProposal, proposal_from_primitive, to_primitive
 from .risk import RiskKernel
 from .strategy import StrategyPlanner, deterministic_thesis
 
@@ -38,6 +38,14 @@ class TradingEngine:
         started = datetime.now(timezone.utc)
         run_id = str(uuid4())
         selected = (symbol or self.settings.underlyings[0]).upper()
+        account = None
+        features = None
+        thesis = None
+        proposal = None
+        critic = None
+        risk = None
+        orders = []
+        submission_attempted = False
         if selected not in self.settings.underlyings:
             self._lock.release()
             raise ValueError(f"Symbol must be one of: {', '.join(self.settings.underlyings)}")
@@ -102,12 +110,12 @@ class TradingEngine:
                 duplicate=self.store.was_submitted(proposal.proposal_id),
                 kill_switch=self.store.kill_switch_engaged,
             )
-            orders = []
             if not risk.approved:
                 status = "rejected"
             elif self.settings.execution_mode == "preview":
                 status = "approved_preview"
             else:
+                submission_attempted = True
                 orders = [self.broker.submit(proposal)]
                 status = "submitted_paper"
             return self._record(
@@ -132,36 +140,49 @@ class TradingEngine:
                 )
             )
         except Exception as exc:
+            if submission_attempted:
+                self.store.set_kill_switch(True)
+            status = "error_execution_unknown" if submission_attempted else "error"
+            failure_note = (
+                "Order submission was attempted, but its broker status is unknown. The kill switch was engaged; reconcile Alpaca before resuming."
+                if submission_attempted
+                else "Order submission was not attempted."
+            )
             report = CycleReport(
                 run_id=run_id,
                 created_at=started,
                 completed_at=datetime.now(timezone.utc),
-                status="error",
+                status=status,
                 mode=self.settings.mode,
                 execution_mode=self.settings.execution_mode,
                 symbol=selected,
-                features=None,
-                thesis=None,
-                proposal=None,
-                critic=None,
-                risk=None,
-                notes=[f"{type(exc).__name__}: {str(exc)[:500]}", "The system failed closed; no order was sent."],
+                features=features,
+                thesis=thesis,
+                proposal=proposal,
+                critic=critic,
+                risk=risk,
+                orders=orders,
+                notes=[f"{type(exc).__name__}: {str(exc)[:500]}", failure_note],
             )
             return self._record(report)
         finally:
             self._lock.release()
 
     def _account_with_local_state(self, account: AccountState) -> AccountState:
-        high = self.store.update_high_watermark(account.equity)
-        baseline_verified = self.store.get_runtime_bool("competition_balance_verified")
+        account_key = account.account_id_masked or "unknown-account"
+        high = self.store.update_high_watermark(account.equity, f"high_watermark:{account_key}")
+        baseline_key = f"competition_balance_verified:{account_key}"
+        baseline_verified = self.store.get_runtime_bool(baseline_key)
         clean_start = (
             not baseline_verified
+            and account.competition_account_match
+            and account.competition_account_fresh
             and account.open_option_positions == 0
             and abs(account.equity - self.settings.competition_starting_balance) < 0.01
         )
         if clean_start:
             baseline_verified = True
-            self.store.set_runtime("competition_balance_verified", "true")
+            self.store.set_runtime(baseline_key, "true")
         return replace(
             account,
             high_watermark=high,
@@ -218,8 +239,8 @@ class TradingEngine:
                 held = [leg.contract.symbol in positions for leg in proposal.legs]
                 if not any(held):
                     continue
-                if not all(held):
-                    # A partial or externally changed position must be handled manually; never create a naked leg.
+                if not all(held) or not self._position_matches(proposal, positions):
+                    # Direction or quantity drift can make a nominal spread unsafe to close automatically.
                     continue
                 bars = self.broker.get_bars(proposal.underlying, limit=max(120, self.settings.slow_ema + 10))
                 features = build_features(
@@ -255,9 +276,16 @@ class TradingEngine:
                     reason = "signal_invalidated"
                 if reason is None:
                     continue
+                exit_error = None
                 if self.settings.execution_mode == "paper" and self.settings.paper_execution_unlocked:
-                    orders = [self.broker.submit_close(proposal, round(exit_credit, 2))]
-                    status = "exit_submitted"
+                    try:
+                        orders = [self.broker.submit_close(proposal, round(exit_credit, 2))]
+                        status = "exit_submitted"
+                    except Exception as exc:
+                        self.store.set_kill_switch(True)
+                        orders = []
+                        status = "exit_error_unknown"
+                        exit_error = f"{type(exc).__name__}: {str(exc)[:500]}"
                 else:
                     orders = []
                     status = "exit_required_preview"
@@ -279,10 +307,31 @@ class TradingEngine:
                         f"Exit reason: {reason}.",
                         f"Observed spread return: {pnl_pct * 100:+.2f}%.",
                         f"Whole-structure limit credit: ${exit_credit:.2f}.",
+                        *(
+                            [
+                                exit_error,
+                                "Close submission status is unknown. Reconcile Alpaca before releasing the kill switch.",
+                            ]
+                            if exit_error
+                            else []
+                        ),
                     ],
                 )
                 self._record(report)
                 reports.append(report)
+                if exit_error:
+                    break
             return reports
         finally:
             self._lock.release()
+
+    @staticmethod
+    def _position_matches(proposal: TradeProposal, positions: dict[str, float]) -> bool:
+        for leg in proposal.legs:
+            signed_quantity = proposal.quantity * leg.ratio
+            if leg.action.value == "sell_to_open":
+                signed_quantity *= -1
+            observed = positions.get(leg.contract.symbol)
+            if observed is None or abs(observed - signed_quantity) > 1e-9:
+                return False
+        return True

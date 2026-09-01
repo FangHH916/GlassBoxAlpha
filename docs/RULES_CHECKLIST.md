@@ -20,6 +20,7 @@ Verified for the Alpaca AI Trading Agents Hackathon as of 2026-09-01.
 - Submission closes: 2026-09-04 15:00 UTC.
 - China Standard Time deadline: 2026-09-04 23:00.
 - US Eastern Daylight Time deadline: 2026-09-04 11:00.
+- Review is asynchronous; there is no scheduled live demo or pitch session.
 
 Sources: [event page](https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon), [live dashboard](https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-hackathon/live).
 
@@ -30,11 +31,11 @@ Sources: [event page](https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-h
 - [x] 1200×630 cover image.
 - [x] Under-five-minute video script.
 - [x] Slide outline.
-- [x] Public demo source.
+- [x] Interactive replay source.
 - [ ] Record and upload final video.
 - [ ] Export final slides.
 - [ ] Publish public GitHub repository and paste URL.
-- [ ] Deploy public demo and paste URL.
+- [ ] Deploy the interactive replay and paste its URL if the form requests one.
 - [ ] Paste fresh Alpaca paper account ID.
 - [x] One-page AI logic / risk gates / Alpaca implementation write-up.
 
@@ -56,4 +57,3 @@ Sources: [paper trading](https://docs.alpaca.markets/us/docs/paper-trading), [op
 - Weight of P&L, technology, originality and presentation criteria.
 - Exact value of each Social Engagement Award.
 - Whether account creation must occur strictly after kickoff; this project enforces that conservative interpretation for paper execution.
-

@@ -4,7 +4,7 @@
 
 “Most AI trading demos give the model authority to invent the trade. GlassBox Alpha gives AI only one power: the power to say no.”
 
-“They ask whether AI can find a trade. We ask what AI must be structurally unable to do.”
+“The trade is fixed before the model reviews it.”
 
 Show the hero and `PAPER ONLY · REPLAY` lock.
 
@@ -25,7 +25,7 @@ Show the critic panel:
 
 ## 0:50–1:15 — Risk wall
 
-Show the exact `$500` maximum loss and 12 visible key gates. Explain that the Python engine evaluates 29 checks, including account identity, market time, daily loss, drawdown, DTE, liquidity and quote age.
+Show the exact `$500` maximum loss and 12 visible key gates. Explain that the Python engine evaluates 32 checks, including account identity, recomputed trade economics, market time, daily loss, drawdown, DTE, liquidity and quote age.
 
 ## 1:15–1:25 — Prove the AI veto
 
@@ -35,7 +35,7 @@ Switch to **AI Veto** and run again. A positive signal still produces `ABSTAIN` 
 
 Switch to **Stale Quote**, run again, and show `ABSTAIN · NO ORDER SENT` plus the red Quote Freshness gate. Repeat quickly with **Wide Spread** if time permits.
 
-“Risk is not a paragraph in our README. It is the main interaction.”
+“The failed value and its limit are recorded with the decision.”
 
 ## 1:40–1:52 — Alpaca execution
 
@@ -52,7 +52,7 @@ Explain that approved paper entries use the official Alpaca CLI as one atomic ML
 
 Click **Verify in browser**, show the audit hash bar and run `glassbox-alpha verify-audit`. End with:
 
-“GlassBox Alpha does not ask you to trust an agent. It shows you exactly why the agent was allowed to act.”
+“Every approval and refusal can be checked against the same recorded inputs.”
 
 ## Required real-Paper insert
 

@@ -4,9 +4,7 @@ Replace bracketed links before posting. Attach screenshots that do not show cred
 
 ## Post 1 — Design thesis
 
-Most AI trading demos ask: “Can the model find a trade?”
-
-For the Alpaca AI Trading Agents Hackathon, we started with a different question: “What authority should a probabilistic model never have?”
+GlassBox Alpha fixes the entire option candidate before the model reviews it.
 
 GlassBox Alpha freezes the symbol, contracts, size, limit and max loss in deterministic code. AI gets one power: ALLOW or VETO. It has no order tool and cannot negotiate with a failed risk gate.
 
@@ -20,7 +18,7 @@ Today we deliberately fed GlassBox Alpha a stale option quote.
 
 Result: ABSTAIN. No order sent. The Trade Passport shows the exact observed quote age, allowed limit, failed gate and audit hash.
 
-Risk is not a paragraph in our README—it is the product's main interaction.
+The failed value and configured limit are saved in the same Trade Passport.
 
 Try the replay: [PUBLIC DEMO]
 
@@ -41,4 +39,3 @@ No live endpoint exists in the project.
 [PUBLIC REPO]
 
 #AlpacaHackathon #AlgorithmicTrading #AIagents
-
