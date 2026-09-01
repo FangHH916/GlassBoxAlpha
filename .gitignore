@@ -11,4 +11,4 @@ site/node_modules/
 site/dist/
 site/.next/
 *.log
-
+tmp/

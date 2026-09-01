@@ -32,8 +32,9 @@ Sources: [event page](https://lablab.ai/ai-hackathons/alpaca-ai-trading-agents-h
 - [x] Under-five-minute video script.
 - [x] Slide outline.
 - [x] Interactive replay source.
-- [ ] Record and upload final video.
-- [ ] Export final slides.
+- [x] Generate final narrated video (`output/submission/GlassBox-Alpha-Video-Presentation.mp4`).
+- [x] Export final slides (`output/submission/GlassBox-Alpha-Slides.pdf`).
+- [ ] Upload the final video and slide PDF to the submission form.
 - [ ] Publish public GitHub repository and paste URL.
 - [ ] Deploy the interactive replay and paste its URL if the form requests one.
 - [ ] Paste fresh Alpaca paper account ID.

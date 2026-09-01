@@ -47,7 +47,10 @@ The product's primary output is not a prediction—it is a verifiable decision b
 ## Submission assets
 
 - Cover/social image: `site/public/og.png` (1200×630)
-- Demo video script: `docs/DEMO_SCRIPT.md`
+- Video presentation: `output/submission/GlassBox-Alpha-Video-Presentation.mp4` (3:27, 1920×1080, H.264/AAC)
+- Slide presentation: `output/submission/GlassBox-Alpha-Slides.pdf` (8 pages, 16:9)
+- Editable slide deck: `output/submission/GlassBox-Alpha-Presentation.pptx`
+- Narration source: `docs/DEMO_SCRIPT.md`
 - Slide outline: `docs/SLIDES.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Public repository URL: **add after publishing**
