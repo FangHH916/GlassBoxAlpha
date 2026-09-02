@@ -17,9 +17,12 @@ class Critic(Protocol):
 class DeterministicCritic:
     """Reproducible offline critic used for credential-free replay."""
 
+    def __init__(self, min_signal_score: float = 0.30):
+        self.min_signal_score = min_signal_score
+
     def review(self, proposal: TradeProposal, features: MarketFeatures) -> CriticVerdict:
         flags: list[str] = []
-        if abs(features.signal_score) < 0.45:
+        if abs(features.signal_score) < self.min_signal_score:
             flags.append("signal_below_offline_critic_threshold")
         if features.realized_vol_20bar > 0.65:
             flags.append("extreme_realized_volatility")
@@ -198,4 +201,4 @@ def _extract_output_text(response: dict[str, object]) -> str:
 def build_critic(settings: Settings) -> Critic:
     if settings.use_deepseek and settings.deepseek_api_key:
         return DeepSeekCritic(settings.deepseek_api_key, settings.ai_model)
-    return DeterministicCritic()
+    return DeterministicCritic(settings.min_signal_score)

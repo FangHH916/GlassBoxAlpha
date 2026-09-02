@@ -22,7 +22,7 @@ type RuntimeReport = {
 };
 type RuntimeState = {
   connected: true; fetched_at: string;
-  settings: { mode: string; execution_mode: string; underlyings: string[]; ai_provider: string; ai_model?: string | null; option_feed: string; paper_execution_unlocked: boolean };
+  settings: { mode: string; execution_mode: string; underlyings: string[]; ai_provider: string; ai_model?: string | null; signal_model: string; min_signal_score: number; option_feed: string; paper_execution_unlocked: boolean };
   health: Record<string, unknown>; account: RuntimeAccount; kill_switch: boolean;
   stats: { total_cycles: number; by_status: Record<string, number>; audit_chain_valid: boolean; audit_records: number };
   recent: RuntimeReport[]; charts: Record<string, Array<{ timestamp: string; close: number }>>;
@@ -121,6 +121,7 @@ export default function Home() {
           <div className="systemSummary">
             <span>EXECUTION</span><b>{runtime?.settings.execution_mode?.toUpperCase() ?? '—'}</b>
             <span>MODEL</span><b>{runtime?.settings.ai_model ?? '—'}</b>
+            <span>SIGNAL</span><b>{runtime ? `${runtime.settings.signal_model.toUpperCase()} ≥ ${runtime.settings.min_signal_score.toFixed(2)}` : '—'}</b>
             <span>AUDIT</span><b className={runtime?.stats.audit_chain_valid ? 'ok' : ''}>{runtime ? (runtime.stats.audit_chain_valid ? 'CHAIN VERIFIED' : 'CHAIN INVALID') : '—'}</b>
           </div>
         </section>

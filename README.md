@@ -47,7 +47,7 @@ hash-chained Trade Passport
 | Paper-only | `TradingClient(..., paper=True)`; no live URL or live mode exists |
 | Fresh $100k competition account | Account ID match, creation-time check and explicit setup checklist |
 | Explainable risk gates | Every check exposes observed value, limit, pass/fail and detail |
-| Public demo | `site/` contains a credential-free interactive decision replay |
+| Public demo | `site/` exposes the connected Paper account, live cycles, grounded Agent chat and real Trade Passports |
 | Open source | MIT License |
 
 The submission deadline is **2026-09-04 15:00 UTC / 23:00 China Standard Time**. See [docs/RULES_CHECKLIST.md](docs/RULES_CHECKLIST.md).
@@ -77,7 +77,7 @@ Expected replay result:
 }
 ```
 
-Run the credential-free decision replay:
+Run the interactive Agent console:
 
 ```powershell
 cd site
@@ -85,7 +85,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. Switch among Clean Market, Stale Quote, Wide Spread, and AI Veto to inspect approval and fail-closed outcomes.
+Open `http://localhost:3000`. With the Python runtime connected, the console shows the real Paper account, runs SPY/QQQ cycles, explains the latest audit record through DeepSeek, and lets judges inspect historical Trade Passports. It displays an explicit offline state instead of substituting mock broker data.
 
 ## Connect read-only Alpaca paper data
 
@@ -162,8 +162,8 @@ Every watch iteration first reconciles open option positions and evaluates exit 
 ## Entry policy
 
 - Only completed five-minute bars are used.
-- EMA 20/50, five-bar momentum and RSI create a bounded directional score.
-- `abs(signal) >= 0.45` and deterministic confidence `>= 0.64` are required.
+- EMA 20/50 defines the medium trend; five-bar momentum and RSI require a short-term pullback before entry.
+- `abs(signal) >= 0.30` and deterministic confidence `>= 0.64` are required.
 - SPY and QQQ only by default.
 - 7–21 DTE; target long delta `0.55`, short delta `0.30`.
 - Each leg needs bid/ask, open interest `>= 500`, spread `<= 12%`, and a fresh timestamp.
@@ -181,6 +181,8 @@ Every watch iteration first reconciles open option positions and evaluates exit 
 - Minimum 45 minutes before the regular close.
 - No 0DTE, naked short, credit strategy, market order, extended-hours order, or leg-by-leg vertical.
 - Persistent kill switch blocks every new candidate.
+
+The model and threshold were selected only on the first 70% of a 120-day Alpaca IEX sample and then checked on an isolated final 30%. See [the reproducible signal validation report](docs/BACKTEST.md). It reports underlying directional returns and deliberately does not claim synthetic option P&L.
 
 ```powershell
 glassbox-alpha kill

@@ -47,7 +47,7 @@ class Settings:
     max_dte: int = 21
     target_long_delta: float = 0.55
     target_short_delta: float = 0.30
-    min_signal_score: float = 0.45
+    min_signal_score: float = 0.30
     min_open_interest: int = 500
     max_quote_spread_pct: float = 0.12
     max_quote_age_seconds: int = 30
@@ -94,7 +94,7 @@ class Settings:
             max_dte=_int("MAX_DTE", 21),
             target_long_delta=_float("TARGET_LONG_DELTA", 0.55),
             target_short_delta=_float("TARGET_SHORT_DELTA", 0.30),
-            min_signal_score=_float("MIN_SIGNAL_SCORE", 0.45),
+            min_signal_score=_float("MIN_SIGNAL_SCORE", 0.30),
             min_open_interest=_int("MIN_OPEN_INTEREST", 500),
             max_quote_spread_pct=_float("MAX_QUOTE_SPREAD_PCT", 0.12),
             max_quote_age_seconds=_int("MAX_QUOTE_AGE_SECONDS", 30),
@@ -173,6 +173,8 @@ class Settings:
             "underlyings": list(self.underlyings),
             "ai_provider": "DeepSeek" if self.use_deepseek else "deterministic fallback",
             "ai_model": self.ai_model if self.use_deepseek else None,
+            "signal_model": "trend_pullback",
+            "min_signal_score": self.min_signal_score,
             "option_feed": self.option_feed,
             "paper_execution_unlocked": self.paper_execution_unlocked,
             "alpaca_execution_backend": self.alpaca_execution_backend,

@@ -82,7 +82,10 @@ def build_features(
     trend_component = _clip((fast / slow - 1) / 0.015) if slow else 0.0
     momentum_component = _clip(momentum / 0.04)
     rsi_component = _clip((rsi_value - 50) / 25)
-    score = _clip(0.45 * trend_component + 0.35 * momentum_component + 0.20 * rsi_component)
+    # Trade in the direction of the medium trend after a short-term pullback.
+    # The weights were selected on the first 70% of a 120-day SPY/QQQ sample;
+    # the final 30% remained isolated for out-of-sample validation.
+    score = _clip(0.50 * trend_component - 0.25 * momentum_component - 0.25 * rsi_component)
     baseline = Stance.BULLISH if score >= 0.18 else Stance.BEARISH if score <= -0.18 else Stance.NEUTRAL
 
     current = now or datetime.now(timezone.utc)

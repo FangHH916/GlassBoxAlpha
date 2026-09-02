@@ -80,6 +80,10 @@ class DemoBroker:
         for index in range(limit):
             # Gentle positive regime with deterministic micro-noise.
             drift = 0.00065 + 0.00012 * math.sin(index / 7)
+            # End the established uptrend with a small pullback so the replay
+            # exercises the same trend-with-pullback signal used in Alpaca mode.
+            if index >= limit - 10:
+                drift -= 0.001
             shock = rng.gauss(0, 0.00035)
             price *= 1 + drift + shock
             closes.append(price)

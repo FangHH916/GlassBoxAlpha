@@ -12,4 +12,5 @@ site/dist/
 site/.next/
 *.log
 tmp/
-tools/
+tools/*
+!tools/backtest_signal.py
