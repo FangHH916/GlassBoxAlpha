@@ -44,10 +44,10 @@ class DeterministicCritic:
         )
 
 
-class OpenAICritic:
-    """LLM critic with veto-only authority and strict structured output."""
+class DeepSeekCritic:
+    """DeepSeek critic with veto-only authority and strict structured output."""
 
-    ENDPOINT = "https://api.openai.com/v1/responses"
+    ENDPOINT = "https://api.deepseek.com/responses"
 
     def __init__(self, api_key: str, model: str, timeout_seconds: float = 8.0):
         self.api_key = api_key
@@ -154,7 +154,7 @@ class OpenAICritic:
                 evidence_ids=list(evidence_ids),
                 thesis=str(parsed["thesis"])[:800],
                 invalidated_if=str(parsed["invalidated_if"])[:400],
-                source="openai_responses",
+                source="deepseek_responses",
                 model=self.model,
             )
         except (
@@ -175,7 +175,7 @@ class OpenAICritic:
                 evidence_ids=[f"candidate:{proposal.proposal_id}"],
                 thesis="The AI critic failed closed; the candidate cannot proceed.",
                 invalidated_if="A fresh, schema-valid critic review succeeds.",
-                source="openai_fail_closed",
+                source="deepseek_fail_closed",
                 model=self.model,
             )
 
@@ -192,10 +192,10 @@ def _extract_output_text(response: dict[str, object]) -> str:
                 text = content.get("text")
                 if isinstance(text, str):
                     return text
-    raise ValueError("OpenAI response contained no output text")
+    raise ValueError("DeepSeek response contained no output text")
 
 
 def build_critic(settings: Settings) -> Critic:
-    if settings.use_openai and settings.openai_api_key:
-        return OpenAICritic(settings.openai_api_key, settings.openai_model)
+    if settings.use_deepseek and settings.deepseek_api_key:
+        return DeepSeekCritic(settings.deepseek_api_key, settings.ai_model)
     return DeterministicCritic()

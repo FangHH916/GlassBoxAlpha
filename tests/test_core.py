@@ -15,7 +15,7 @@ from unittest.mock import patch
 from glassbox_alpha.audit import AuditStore
 from glassbox_alpha.broker import AlpacaBroker, DemoBroker, _close_order_payload, _order_payload
 from glassbox_alpha.config import Settings
-from glassbox_alpha.critic import DeterministicCritic, OpenAICritic, _extract_output_text
+from glassbox_alpha.critic import DeepSeekCritic, DeterministicCritic, _extract_output_text
 from glassbox_alpha.engine import TradingEngine
 from glassbox_alpha.indicators import build_features, ema, rsi
 from glassbox_alpha.models import LegAction
@@ -301,7 +301,7 @@ class CriticTests(unittest.TestCase):
         response = {"output": [{"content": [{"type": "output_text", "text": '{"verdict":"ALLOW"}'}]}]}
         self.assertEqual(json.loads(_extract_output_text(response))["verdict"], "ALLOW")
 
-    def test_openai_network_failure_returns_veto(self) -> None:
+    def test_deepseek_network_failure_returns_veto(self) -> None:
         settings = Settings(project_root=Path.cwd())
         broker = DemoBroker(settings)
         account = broker.get_account()
@@ -314,11 +314,11 @@ class CriticTests(unittest.TestCase):
         )
         assert proposal is not None
         with patch("urllib.request.urlopen", side_effect=TimeoutError("offline")):
-            verdict = OpenAICritic("test-key", "test-model").review(proposal, features)
+            verdict = DeepSeekCritic("test-key", "test-model").review(proposal, features)
         self.assertEqual(verdict.verdict, "VETO")
-        self.assertEqual(verdict.source, "openai_fail_closed")
+        self.assertEqual(verdict.source, "deepseek_fail_closed")
 
-    def test_openai_missing_evidence_fails_closed(self) -> None:
+    def test_deepseek_missing_evidence_fails_closed(self) -> None:
         settings = Settings(project_root=Path.cwd())
         broker = DemoBroker(settings)
         features = build_features("SPY", broker.get_bars("SPY"))
@@ -349,9 +349,9 @@ class CriticTests(unittest.TestCase):
                 return json.dumps({"output_text": json.dumps(output)}).encode()
 
         with patch("urllib.request.urlopen", return_value=Response()):
-            verdict = OpenAICritic("test-key", "test-model").review(proposal, features)
+            verdict = DeepSeekCritic("test-key", "test-model").review(proposal, features)
         self.assertEqual(verdict.verdict, "VETO")
-        self.assertEqual(verdict.source, "openai_fail_closed")
+        self.assertEqual(verdict.source, "deepseek_fail_closed")
 
 
 if __name__ == "__main__":

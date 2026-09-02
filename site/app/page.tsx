@@ -1,8 +1,35 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 type Scenario = 'clean' | 'ai_veto' | 'stale' | 'wide';
+type ChatMessage = { role: 'agent' | 'user'; content: string; model?: string };
+type RuntimeAccount = {
+  equity: number; last_equity: number; buying_power: number; options_buying_power: number;
+  option_market_value: number; daily_pnl: number; high_watermark: number;
+  open_option_positions: number; trades_today: number; options_trading_level: number;
+  is_paper: boolean; market_open: boolean; minutes_to_close?: number | null; account_id_masked?: string | null;
+  error?: string;
+};
+type RuntimeReport = {
+  run_id: string; created_at: string; status: string; symbol: string; mode: string; execution_mode: string;
+  features?: { spot: number; signal_score: number; baseline_stance: string; rsi_14: number; timestamp: string } | null;
+  proposal?: { proposal_id: string; structure: string; max_loss: number; max_profit?: number | null; quantity: number } | null;
+  critic?: { verdict: string; thesis: string; source: string; model?: string | null } | null;
+  risk?: { approved: boolean; summary: string; checks: Array<{ label: string; passed: boolean; observed: unknown; limit: unknown }> } | null;
+  audit?: { record_hash: string; previous_hash: string; sequence: number };
+};
+type RuntimeState = {
+  connected: true;
+  fetched_at: string;
+  settings: { mode: string; execution_mode: string; underlyings: string[]; ai_provider: string; ai_model?: string | null; option_feed: string; paper_execution_unlocked: boolean };
+  health: Record<string, unknown>;
+  account: RuntimeAccount;
+  kill_switch: boolean;
+  stats: { total_cycles: number; by_status: Record<string, number>; audit_chain_valid: boolean; audit_records: number };
+  recent: RuntimeReport[];
+  charts: Record<string, Array<{ timestamp: string; close: number }>>;
+};
 
 const passportPayload = JSON.stringify({
   candidate_id: 'GBA-7D90A3F1', symbol: 'SPY', structure: 'bull_call_debit_spread',
@@ -28,6 +55,9 @@ const baseGates = [
 
 const priceBars = [42, 47, 45, 51, 55, 53, 58, 61, 59, 64, 68, 66, 72, 75, 73, 79, 82, 80, 85, 89, 87, 92, 94, 97];
 
+const money = (value: number | undefined) => value === undefined ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const signedMoney = (value: number | undefined) => value === undefined ? '—' : `${value >= 0 ? '+' : '−'}${money(Math.abs(value))}`;
+
 const sleep = (milliseconds: number) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 
 export default function Home() {
@@ -36,10 +66,55 @@ export default function Home() {
   const [running, setRunning] = useState(false);
   const [hasRun, setHasRun] = useState(false);
   const [hashStatus, setHashStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [chatInput, setChatInput] = useState('');
+  const [chatBusy, setChatBusy] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [runtime, setRuntime] = useState<RuntimeState | null>(null);
+  const [runtimeError, setRuntimeError] = useState('Connecting to the Python agent…');
+  const [runtimeLoading, setRuntimeLoading] = useState(true);
+  const [cycleBusy, setCycleBusy] = useState(false);
 
   const failedGate = scenario === 'ai_veto' ? 'AI critic' : scenario === 'stale' ? 'Quote freshness' : scenario === 'wide' ? 'Liquidity' : null;
   const approved = hasRun && !failedGate;
   const rejected = hasRun && Boolean(failedGate);
+  const latest = runtime?.recent?.[0];
+  const account = runtime?.account && !runtime.account.error ? runtime.account : null;
+  const aiOnline = runtime?.settings.ai_provider === 'DeepSeek' && Boolean(runtime.settings.ai_model);
+  const chartSymbol = latest?.symbol ?? runtime?.settings.underlyings?.[0];
+  const liveBars = useMemo(() => chartSymbol ? runtime?.charts?.[chartSymbol] ?? [] : [], [chartSymbol, runtime?.charts]);
+  const chartPath = useMemo(() => {
+    if (liveBars.length < 2) return '';
+    const closes = liveBars.map((bar) => bar.close);
+    const low = Math.min(...closes);
+    const high = Math.max(...closes);
+    const range = Math.max(high - low, 0.01);
+    return closes.map((close, index) => `${index * (690 / Math.max(closes.length - 1, 1))},${175 - ((close - low) / range) * 145}`).join(' L ');
+  }, [liveBars]);
+
+  useEffect(() => {
+    let active = true;
+    async function refreshRuntime() {
+      try {
+        const response = await fetch('/api/runtime', { cache: 'no-store' });
+        const payload = await response.json() as RuntimeState & { error?: string; detail?: string };
+        if (!response.ok) throw new Error(payload.detail || payload.error || 'Python agent is unavailable');
+        if (active) {
+          setRuntime(payload);
+          setRuntimeError('');
+        }
+      } catch (error) {
+        if (active) {
+          setRuntime(null);
+          setRuntimeError(error instanceof Error ? error.message : 'Python agent is unavailable');
+        }
+      } finally {
+        if (active) setRuntimeLoading(false);
+      }
+    }
+    void refreshRuntime();
+    const timer = window.setInterval(refreshRuntime, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
 
   const gates = useMemo(() => baseGates.map((gate) => {
     const item = [...gate];
@@ -80,6 +155,54 @@ export default function Home() {
     setHashStatus(actual === storedPassportHash ? 'valid' : 'invalid');
   }
 
+  async function askAgent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const question = chatInput.trim();
+    if (!question || chatBusy) return;
+    setMessages((current) => [...current, { role: 'user', content: question }]);
+    setChatInput('');
+    setChatBusy(true);
+    try {
+      const response = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      const payload = await response.json() as { answer?: string; model?: string; error?: string };
+      if (!response.ok || !payload.answer) throw new Error(payload.error || 'Agent unavailable');
+      setMessages((current) => [...current, { role: 'agent', content: payload.answer!, model: payload.model }]);
+    } catch (error) {
+      setMessages((current) => [...current, {
+        role: 'agent',
+        content: error instanceof Error ? error.message : 'The model endpoint is unavailable.',
+      }]);
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  function presetPrompt(prompt: string) {
+    setChatInput(prompt);
+  }
+
+  async function runLiveCycle(symbol: string) {
+    if (!runtime || cycleBusy) return;
+    setCycleBusy(true);
+    try {
+      const response = await fetch('/api/runtime', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Agent cycle failed');
+      const refreshed = await fetch('/api/runtime', { cache: 'no-store' });
+      if (refreshed.ok) setRuntime(await refreshed.json() as RuntimeState);
+    } catch (error) {
+      setRuntimeError(error instanceof Error ? error.message : 'Agent cycle failed');
+    } finally {
+      setCycleBusy(false);
+    }
+  }
+
   const verdict = running ? 'ANALYZING' : approved ? 'APPROVED' : rejected ? 'ABSTAIN' : 'READY';
 
   return (
@@ -117,6 +240,81 @@ export default function Home() {
         <div><span>OPTION LEVEL</span><b>LEVEL 3 · MLEG</b></div>
         <div><span>DATA FEED</span><b>INDICATIVE · DISCLOSED</b></div>
         <div><span>OPEN RISK</span><b>$0 · 0.00%</b></div>
+      </section>
+
+      <section className="commandCenter" aria-label="Agent command center">
+        <div className="commandHead">
+          <div><span className="label">LIVE AGENT COMMAND CENTER</span><h2>Only broker and agent data. No fabricated metrics.</h2></div>
+          <div className={`liveBadge ${runtime ? '' : 'offline'}`}><i /> {runtimeLoading ? 'CONNECTING' : runtime ? `CONNECTED · ${runtime.settings.mode.toUpperCase()} · 5S` : 'DISCONNECTED'}</div>
+        </div>
+
+        <div className="dashboardGrid">
+          <section className="metricBoard" aria-label="Portfolio metrics">
+            {!runtime ? <div className="connectionEmpty"><span>PYTHON AGENT OFFLINE</span><h3>No account or market data is being displayed.</h3><p>{runtimeError}</p><code>BROKER_MODE=alpaca · USE_DEEPSEEK=true · python -m glassbox_alpha serve</code><small>Add credentials locally in `.env`; never commit them to GitHub.</small></div> : <div className="metricCards">
+              <article><span>ALPACA EQUITY</span><b>{money(account?.equity)}</b><small>{account ? `Account ${account.account_id_masked ?? 'masked'}` : runtime.account.error}</small></article>
+              <article><span>DAILY P&amp;L</span><b className={(account?.daily_pnl ?? 0) >= 0 ? 'positive' : 'negative'}>{signedMoney(account?.daily_pnl)}</b><small>Broker account state</small></article>
+              <article><span>OPTION EXPOSURE</span><b>{money(account?.option_market_value)}</b><small>{account ? `${account.open_option_positions} open option positions` : 'Unavailable'}</small></article>
+              <article><span>RECORDED CYCLES</span><b>{runtime.stats.total_cycles}</b><small>{runtime.stats.audit_chain_valid ? `${runtime.stats.audit_records} verified audit records` : 'AUDIT CHAIN INVALID'}</small></article>
+            </div>}
+
+            <article className="performancePanel">
+              <div className="panelTitle"><span>{chartSymbol ?? 'MARKET'} · COMPLETED BARS</span><b>{latest?.features ? money(latest.features.spot) : 'NO REAL RUN'}</b></div>
+              {runtime && chartPath ? <div className="lineChart" aria-label="Completed market bars from the Python agent">
+                <svg viewBox="0 0 690 190" role="img" aria-label={`${chartSymbol} completed bar prices`}>
+                  <path className="gridLine" d="M0 25H690M0 80H690M0 135H690M0 189H690" />
+                  <path className="trend" d={`M ${chartPath}`} />
+                </svg>
+                <div className="chartAxis"><span>{liveBars[0]?.timestamp.slice(11, 16)}</span><span>PYTHON AGENT FEED</span><span>{liveBars.at(-1)?.timestamp.slice(11, 16)}</span></div>
+              </div> : <div className="chartEmpty">{runtime ? 'Run a real preview cycle to load completed Alpaca bars.' : 'Waiting for a connected Python Agent.'}</div>}
+              <div className="performanceFoot"><span>MODE <b>{runtime?.settings.mode.toUpperCase() ?? '—'}</b></span><span>FEED <b>{runtime?.settings.option_feed.toUpperCase() ?? '—'}</b></span><span>MARKET <b>{account ? (account.market_open ? 'OPEN' : 'CLOSED') : '—'}</b></span><span>KILL SWITCH <b>{runtime ? (runtime.kill_switch ? 'ENGAGED' : 'CLEAR') : '—'}</b></span></div>
+            </article>
+
+            <div className="watchAndActivity">
+              <article className="watchlist">
+                <div className="panelTitle"><span>AGENT WATCHLIST</span><b>{runtime ? `${runtime.settings.underlyings.length} SYMBOLS` : 'OFFLINE'}</b></div>
+                {runtime?.settings.underlyings.map((symbol) => {
+                  const report = runtime.recent.find((item) => item.symbol === symbol && item.features);
+                  return <div className="watchRow" key={symbol}><b>{symbol}</b><span>{money(report?.features?.spot)}</span><span>{report?.features?.signal_score === undefined ? '—' : report.features.signal_score.toFixed(2)}</span><small>{report?.features?.baseline_stance?.toUpperCase() ?? 'NOT SCANNED'}</small></div>;
+                })}
+                {runtime && <button className="liveCycle" type="button" disabled={cycleBusy || !runtime.settings.underlyings[0]} onClick={() => void runLiveCycle(runtime.settings.underlyings[0])}>{cycleBusy ? 'RUNNING AGENT…' : `RUN ${runtime.settings.underlyings[0]} PREVIEW →`}</button>}
+              </article>
+              <article className="activityFeed">
+                <div className="panelTitle"><span>DECISION STREAM</span><b>PYTHON LEDGER</b></div>
+                {runtime?.recent.length ? runtime.recent.slice(0, 3).map((report) => <div className={`activity ${report.risk?.approved ? 'pass' : 'block'}`} key={report.run_id}><time>{report.created_at.slice(11, 19)}</time><i /><div><b>{report.symbol} · {report.status.replaceAll('_', ' ')}</b><small>{report.critic ? `${report.critic.verdict} · ${report.critic.source}${report.critic.model ? ` · ${report.critic.model}` : ''}` : report.risk?.summary ?? 'No candidate created'}</small></div></div>) : <div className="activityEmpty">No real Agent cycles have been recorded.</div>}
+              </article>
+            </div>
+          </section>
+
+          <aside className="agentChat" aria-label="Chat with the trading agent">
+            <div className="chatHead">
+              <div className="agentAvatar">AI</div>
+              <div><b>GLASSBOX ANALYST</b><span><i /> {aiOnline ? `${runtime?.settings.ai_model} · REAL MODEL` : 'MODEL NOT CONNECTED'}</span></div>
+              <em>VETO ONLY</em>
+            </div>
+            <div className="agentBoundary"><b>RUNTIME EVIDENCE</b><span>{latest ? `${latest.symbol} · ${latest.run_id.slice(0, 8)} · ${latest.status}` : 'A completed Agent cycle is required'}</span></div>
+            <div className="messages" aria-live="polite">
+              {!aiOnline && <div className="message system"><span>CONNECTION REQUIRED</span><p>Chat is disabled until the Python runtime reports a DeepSeek model and at least one real Agent cycle. No canned response will be substituted.</p></div>}
+              {messages.map((message, index) => (
+                <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
+                  <span>{message.role === 'agent' ? 'AGENT' : 'YOU'}</span>
+                  <p>{message.content}</p>
+                  {message.role === 'agent' && message.model && <small>DEEPSEEK · {message.model} · RUNTIME EVIDENCE</small>}
+                </div>
+              ))}
+              {chatBusy && <div className="message agent thinking"><span>AGENT</span><p>Checking the frozen candidate and risk evidence…</p></div>}
+            </div>
+            <div className="quickPrompts">
+              <button type="button" onClick={() => presetPrompt('Why did you make this decision?')}>WHY THIS DECISION?</button>
+              <button type="button" onClick={() => presetPrompt('What is the worst-case loss?')}>EXPLAIN RISK</button>
+              <button type="button" onClick={() => presetPrompt('What would make you veto this trade?')}>VETO CONDITIONS</button>
+            </div>
+            <form className="chatForm" onSubmit={askAgent}>
+              <label htmlFor="agent-question">ASK ABOUT THE LATEST REAL DECISION</label>
+              <div><input id="agent-question" value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder={aiOnline && latest ? 'Why was this candidate allowed?' : 'Connect Alpaca and DeepSeek first'} disabled={!aiOnline || !latest} maxLength={500} /><button type="submit" disabled={!chatInput.trim() || chatBusy || !aiOnline || !latest}>→</button></div>
+            </form>
+            <p className="chatDisclosure">Server-side model call · grounded in the latest audit record · no order tool.</p>
+          </aside>
+        </div>
       </section>
 
       <section className="decision" id="passport" aria-label="Trade decision passport">

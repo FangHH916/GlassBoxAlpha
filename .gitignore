@@ -12,3 +12,4 @@ site/dist/
 site/.next/
 *.log
 tmp/
+tools/

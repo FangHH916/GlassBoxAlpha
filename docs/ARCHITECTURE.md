@@ -54,7 +54,7 @@ TRADE PASSPORT
 - `broker.py`: Alpaca Data/Trading clients, official CLI execution, replay broker.
 - `indicators.py`: completed-bar features.
 - `strategy.py`: deterministic thesis, contract selection and bounded sizing.
-- `critic.py`: deterministic replay critic and strict OpenAI veto critic.
+- `critic.py`: deterministic replay critic and strict DeepSeek V4 Flash veto critic.
 - `risk.py`: independent hard gates.
 - `engine.py`: orchestration, reconciliation and exit policy.
 - `audit.py`: SQLite Trade Passports and SHA-256 chain.

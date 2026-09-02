@@ -36,9 +36,9 @@ class Settings:
     underlyings: tuple[str, ...] = ("SPY", "QQQ")
     alpaca_api_key: str | None = None
     alpaca_api_secret: str | None = None
-    openai_api_key: str | None = None
-    openai_model: str = "gpt-5-mini"
-    use_openai: bool = False
+    deepseek_api_key: str | None = None
+    ai_model: str = "deepseek-v4-flash"
+    use_deepseek: bool = False
     option_feed: str = "indicative"
     fast_ema: int = 20
     slow_ema: int = 50
@@ -82,9 +82,9 @@ class Settings:
             underlyings=_csv("UNDERLYINGS", "SPY,QQQ"),
             alpaca_api_key=os.getenv("APCA_API_KEY_ID"),
             alpaca_api_secret=os.getenv("APCA_API_SECRET_KEY"),
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-            openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
-            use_openai=_bool("USE_OPENAI", False),
+            deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
+            ai_model=os.getenv("AI_MODEL", "deepseek-v4-flash"),
+            use_deepseek=_bool("USE_DEEPSEEK", False),
             option_feed=os.getenv("OPTION_FEED", "indicative").strip().lower(),
             fast_ema=_int("FAST_EMA", 20),
             slow_ema=_int("SLOW_EMA", 50),
@@ -126,8 +126,8 @@ class Settings:
             raise ValueError("EXECUTION_MODE must be 'preview' or 'paper'; live trading is intentionally unsupported")
         if self.mode == "alpaca" and (not self.alpaca_api_key or not self.alpaca_api_secret):
             raise ValueError("Alpaca mode requires APCA_API_KEY_ID and APCA_API_SECRET_KEY")
-        if self.use_openai and not self.openai_api_key:
-            raise ValueError("USE_OPENAI=true requires OPENAI_API_KEY")
+        if self.use_deepseek and not self.deepseek_api_key:
+            raise ValueError("USE_DEEPSEEK=true requires DEEPSEEK_API_KEY")
         if self.fast_ema >= self.slow_ema:
             raise ValueError("FAST_EMA must be smaller than SLOW_EMA")
         if self.fast_ema < 2 or self.slow_ema < 3:
@@ -169,8 +169,8 @@ class Settings:
             "mode": self.mode,
             "execution_mode": self.execution_mode,
             "underlyings": list(self.underlyings),
-            "ai_provider": "OpenAI" if self.use_openai else "deterministic fallback",
-            "openai_model": self.openai_model if self.use_openai else None,
+            "ai_provider": "DeepSeek" if self.use_deepseek else "deterministic fallback",
+            "ai_model": self.ai_model if self.use_deepseek else None,
             "option_feed": self.option_feed,
             "paper_execution_unlocked": self.paper_execution_unlocked,
             "alpaca_execution_backend": self.alpaca_execution_backend,

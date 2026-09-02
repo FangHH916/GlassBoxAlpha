@@ -106,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("Stopped. The persistent kill switch state was not changed.")
             return 0
         if args.command == "check":
-            account = engine.broker.get_account()
+            account = engine._account_with_local_state(engine.broker.get_account())
             payload = {"health": engine.broker.health(), "account": to_primitive(account), "settings": engine.settings.public_dict()}
             if args.show_account_id and isinstance(engine.broker, AlpacaBroker):
                 payload["full_account_id"] = engine.broker.full_account_id

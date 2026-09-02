@@ -121,14 +121,14 @@ alpaca --help-all
 
 The adapter calls `alpaca api POST /v2/orders` with a single atomic MLeg JSON payload. It sets paper credentials only for that child process, removes `ALPACA_LIVE_TRADE`, uses a unique `client_order_id`, and never invokes a shell.
 
-## Optional OpenAI veto critic
+## Optional DeepSeek veto critic
 
-Replay uses a deterministic critic so judges can run it without secrets. To use an OpenAI model as the veto-only critic:
+Replay uses a deterministic critic so judges can run it without secrets. To use DeepSeek V4 Flash as the veto-only critic:
 
 ```env
-USE_OPENAI=true
-OPENAI_API_KEY=your-key
-OPENAI_MODEL=gpt-5-mini
+USE_DEEPSEEK=true
+DEEPSEEK_API_KEY=your-key
+AI_MODEL=deepseek-v4-flash
 ```
 
 The integration uses the Responses API with strict JSON Schema. The only accepted fields are candidate ID, `ALLOW`/`VETO`, risk flags, supplied evidence IDs, thesis, and invalidation. The model has no order tool. Network or parsing failures return `VETO`.
@@ -235,7 +235,7 @@ cd site
 npm run build
 ```
 
-Tests cover paper-only configuration, the execution interlock, candidate construction, Level 2 fallback, every clean risk gate, stale quotes, kill switch persistence, atomic entry and close payloads, OpenAI failure-to-veto behavior, preview non-execution, and Trade Passport tamper detection.
+Tests cover paper-only configuration, the execution interlock, candidate construction, Level 2 fallback, every clean risk gate, stale quotes, kill switch persistence, atomic entry and close payloads, DeepSeek failure-to-veto behavior, preview non-execution, and Trade Passport tamper detection.
 
 ## Important limitations
 

@@ -14,7 +14,7 @@ Building an autonomous AI options trading agent with explainable decisions and s
 
 ## Tags
 
-`Alpaca` · `Options` · `AI Agents` · `Algorithmic Trading` · `Risk Management` · `OpenAI` · `Python` · `TypeScript` · `FinTech`
+`Alpaca` · `Options` · `AI Agents` · `Algorithmic Trading` · `Risk Management` · `DeepSeek` · `Python` · `TypeScript` · `FinTech`
 
 ## Long description
 
