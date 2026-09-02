@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -60,7 +61,8 @@ def parser() -> argparse.ArgumentParser:
 
     api = commands.add_parser("serve", help="Serve the local read/control API")
     api.add_argument("--host", default="127.0.0.1")
-    api.add_argument("--port", type=int, default=8787)
+    api.add_argument("--port", type=int, default=int(os.getenv("PORT", "8787")))
+    api.add_argument("--watch-interval", type=int, default=0, help="Run autonomous scans in the API process; 0 disables")
     return root
 
 
@@ -137,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2, ensure_ascii=False))
             return 0
         if args.command == "serve":
-            serve(engine, args.host, args.port)
+            serve(engine, args.host, args.port, args.watch_interval)
             return 0
     except (ValueError, RuntimeError, PermissionError) as exc:
         print(f"error: {exc}", file=sys.stderr)

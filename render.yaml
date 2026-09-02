@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: glassbox-alpha-agent
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    branch: main
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    disk:
+      name: audit-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: BROKER_MODE
+        value: alpaca
+      - key: EXECUTION_MODE
+        value: paper
+      - key: UNDERLYINGS
+        value: SPY,QQQ
+      - key: APCA_API_KEY_ID
+        sync: false
+      - key: APCA_API_SECRET_KEY
+        sync: false
+      - key: COMPETITION_ACCOUNT_ID
+        sync: false
+      - key: COMPETITION_START_UTC
+        value: 2026-08-28T15:00:00+00:00
+      - key: ALPACA_EXECUTION_BACKEND
+        value: cli
+      - key: ALPACA_CLI_PATH
+        value: /usr/local/bin/alpaca
+      - key: ALPACA_LIVE_TRADE
+        value: "false"
+      - key: OPTION_FEED
+        value: indicative
+      - key: USE_DEEPSEEK
+        value: "true"
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: deepseek-v4-flash
+      - key: ALLOW_PAPER_ORDERS
+        value: "true"
+      - key: PAPER_ORDER_CONFIRMATION
+        value: I_UNDERSTAND_PAPER_ONLY
+      - key: AGENT_API_TOKEN
+        generateValue: true
+      - key: DATABASE_PATH
+        value: /var/data/glassbox_alpha.sqlite3
+      - key: KILL_SWITCH_PATH
+        value: /var/data/KILL_SWITCH

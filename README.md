@@ -237,6 +237,12 @@ npm run build
 
 Tests cover paper-only configuration, the execution interlock, candidate construction, Level 2 fallback, every clean risk gate, stale quotes, kill switch persistence, atomic entry and close payloads, DeepSeek failure-to-veto behavior, preview non-execution, and Trade Passport tamper detection.
 
+## Render deployment
+
+The repository includes `render.yaml` for a GitHub-connected Render Blueprint. It builds the official Alpaca CLI into the image, runs the authenticated API and five-minute autonomous scanner in one process, and stores the audit database and kill switch on `/var/data`. Use a paid always-on web service with the smallest persistent disk; Render's free web service sleeps and does not preserve SQLite files.
+
+After the Blueprint is live, copy its generated `AGENT_API_TOKEN` into the frontend's server-side environment and set `AGENT_API_URL` to the service's `https://...onrender.com` URL. Never prefix either variable with `NEXT_PUBLIC_`.
+
 ## Important limitations
 
 - This project does not provide investment advice or promise profit.

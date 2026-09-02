@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import json
 import hmac
+import json
+import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -10,7 +11,12 @@ from .engine import TradingEngine
 from .models import to_primitive
 
 
-def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> None:
+def serve(
+    engine: TradingEngine,
+    host: str = "127.0.0.1",
+    port: int = 8787,
+    watch_interval: int = 0,
+) -> None:
     """Serve a small local control API. It never changes execution mode at runtime."""
 
     if engine.settings.paper_execution_unlocked and not engine.settings.agent_api_token:
@@ -103,7 +109,27 @@ def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> N
         def log_message(self, format: str, *args: object) -> None:
             return
 
+    stop_event = threading.Event()
+
+    def autonomous_loop() -> None:
+        interval = max(30, watch_interval)
+        while not stop_event.is_set():
+            try:
+                for report in engine.supervise_positions():
+                    print(f"{report.completed_at.isoformat()} {report.symbol} {report.status}", flush=True)
+                for symbol in engine.settings.underlyings:
+                    report = engine.run_cycle(symbol)
+                    print(f"{report.completed_at.isoformat()} {symbol} {report.status}", flush=True)
+            except Exception as exc:
+                print(f"Autonomous scan failed closed: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
+            stop_event.wait(interval)
+
     server = ThreadingHTTPServer((host, port), Handler)
+    watcher = None
+    if watch_interval > 0:
+        watcher = threading.Thread(target=autonomous_loop, name="glassbox-watch", daemon=True)
+        watcher.start()
+
     print(f"GlassBox Alpha local API: http://{host}:{port}")
     print("Execution mode is fixed at process startup; this API cannot unlock trading.")
     try:
@@ -111,4 +137,7 @@ def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> N
     except KeyboardInterrupt:
         pass
     finally:
+        stop_event.set()
         server.server_close()
+        if watcher is not None:
+            watcher.join(timeout=5)
