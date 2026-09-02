@@ -1,9 +1,14 @@
 const runtimeBase = (process.env.AGENT_API_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+const runtimeToken = process.env.AGENT_API_TOKEN;
 
 async function runtimeRequest(path: string, init?: RequestInit) {
   const response = await fetch(`${runtimeBase}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {}),
+      ...(init?.headers ?? {}),
+    },
     cache: 'no-store',
     signal: AbortSignal.timeout(10_000),
   });

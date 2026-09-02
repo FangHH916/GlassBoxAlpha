@@ -58,7 +58,7 @@ TRADE PASSPORT
 - `risk.py`: independent hard gates.
 - `engine.py`: orchestration, reconciliation and exit policy.
 - `audit.py`: SQLite Trade Passports and SHA-256 chain.
-- `server.py`: local API with immutable execution mode.
+- `server.py`: authenticated control API with immutable execution mode; Paper execution requires a shared Bearer token.
 - `site/`: credential-free public replay experience.
 
 ## Threat model

@@ -67,6 +67,7 @@ class Settings:
     alpaca_cli_path: str = "alpaca"
     competition_account_id: str | None = None
     competition_start_utc: str = "2026-08-28T15:00:00+00:00"
+    agent_api_token: str | None = None
     db_path: Path = field(default_factory=lambda: Path("data/glassbox_alpha.sqlite3"))
     kill_switch_path: Path = field(default_factory=lambda: Path("data/KILL_SWITCH"))
 
@@ -113,6 +114,7 @@ class Settings:
             alpaca_cli_path=os.getenv("ALPACA_CLI_PATH", "alpaca").strip(),
             competition_account_id=os.getenv("COMPETITION_ACCOUNT_ID"),
             competition_start_utc=os.getenv("COMPETITION_START_UTC", "2026-08-28T15:00:00+00:00"),
+            agent_api_token=os.getenv("AGENT_API_TOKEN"),
             db_path=db_raw if db_raw.is_absolute() else root / db_raw,
             kill_switch_path=kill_raw if kill_raw.is_absolute() else root / kill_raw,
         )

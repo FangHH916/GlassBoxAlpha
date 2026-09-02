@@ -1,4 +1,5 @@
 const runtimeBase = (process.env.AGENT_API_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
+const runtimeToken = process.env.AGENT_API_TOKEN;
 
 function outputText(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
@@ -30,7 +31,11 @@ export async function POST(request: Request) {
   if (!apiKey) return Response.json({ error: 'DeepSeek is not configured. No fallback response was generated.' }, { status: 503 });
 
   try {
-    const dashboardResponse = await fetch(`${runtimeBase}/api/dashboard`, { cache: 'no-store', signal: AbortSignal.timeout(8_000) });
+    const dashboardResponse = await fetch(`${runtimeBase}/api/dashboard`, {
+      cache: 'no-store',
+      headers: runtimeToken ? { Authorization: `Bearer ${runtimeToken}` } : {},
+      signal: AbortSignal.timeout(8_000),
+    });
     if (!dashboardResponse.ok) throw new Error('Python Agent is unavailable.');
     const dashboard = await dashboardResponse.json() as { settings?: { mode?: string; ai_provider?: string; ai_model?: string }; recent?: unknown[] };
     if (dashboard.settings?.mode !== 'alpaca') throw new Error('Python Agent is not connected to Alpaca.');

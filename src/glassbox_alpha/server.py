@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hmac
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -12,8 +13,8 @@ from .models import to_primitive
 def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> None:
     """Serve a small local control API. It never changes execution mode at runtime."""
 
-    if engine.settings.paper_execution_unlocked:
-        raise PermissionError("The local API is disabled while paper-order execution is unlocked")
+    if engine.settings.paper_execution_unlocked and not engine.settings.agent_api_token:
+        raise PermissionError("AGENT_API_TOKEN is required while paper-order execution is unlocked")
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "GlassBoxAlpha/0.1"
@@ -39,6 +40,19 @@ def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> N
                 raise ValueError("JSON body must be an object")
             return value
 
+        def _authorized(self) -> bool:
+            expected = engine.settings.agent_api_token
+            if not expected:
+                return not engine.settings.paper_execution_unlocked
+            supplied = self.headers.get("Authorization", "")
+            return hmac.compare_digest(supplied, f"Bearer {expected}")
+
+        def _require_authorization(self) -> bool:
+            if self._authorized():
+                return True
+            self._json({"error": "unauthorized"}, HTTPStatus.UNAUTHORIZED)
+            return False
+
         def do_GET(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
             if path == "/":
@@ -52,8 +66,12 @@ def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> N
             elif path == "/health":
                 self._json({"ok": True, "paper_only": True, "kill_switch": engine.store.kill_switch_engaged})
             elif path == "/api/dashboard":
+                if not self._require_authorization():
+                    return
                 self._json(engine.dashboard_state())
             elif path.startswith("/api/passports/"):
+                if not self._require_authorization():
+                    return
                 run_id = path.rsplit("/", 1)[-1]
                 report = engine.store.get(run_id)
                 self._json(report or {"error": "not found"}, HTTPStatus.OK if report else HTTPStatus.NOT_FOUND)
@@ -63,6 +81,8 @@ def serve(engine: TradingEngine, host: str = "127.0.0.1", port: int = 8787) -> N
         def do_POST(self) -> None:  # noqa: N802
             path = urlparse(self.path).path
             try:
+                if not self._require_authorization():
+                    return
                 body = self._body()
                 if path == "/api/cycle":
                     symbol = str(body.get("symbol") or engine.settings.underlyings[0]).upper()

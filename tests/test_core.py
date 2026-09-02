@@ -93,7 +93,7 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Settings(project_root=Path.cwd(), competition_start_utc="2026-08-28T15:00:00").validate()
 
-    def test_local_api_is_disabled_when_paper_execution_is_unlocked(self) -> None:
+    def test_paper_api_requires_shared_token(self) -> None:
         root = Path.cwd()
         settings = Settings(
             project_root=root,

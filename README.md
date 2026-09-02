@@ -224,7 +224,7 @@ Local API routes:
 - `POST /api/kill-switch` with `{"engaged":true}`
 
 The local API binds to `127.0.0.1` by default and cannot alter execution mode.
-It refuses to start while the paper-order interlock is unlocked.
+When the paper-order interlock is unlocked, `AGENT_API_TOKEN` is required at startup and every `/api/*` request must send it as a Bearer token. Configure the same server-side secret on the web deployment; it is never exposed to browser JavaScript.
 
 ## Tests
 
