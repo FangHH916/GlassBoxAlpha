@@ -263,6 +263,18 @@ class EngineAndAuditTests(Fixture):
         self.assertFalse(valid)
         self.assertEqual(broken_at, 1)
 
+    def test_stale_market_data_abstains_before_candidate_creation(self) -> None:
+        original = self.broker.get_bars
+
+        def stale_bars(symbol: str, limit: int = 120):
+            return [replace(bar, timestamp=bar.timestamp - timedelta(hours=2)) for bar in original(symbol, limit)]
+
+        with patch.object(self.broker, "get_bars", side_effect=stale_bars):
+            report = self.engine.run_cycle("SPY")
+        self.assertEqual(report.status, "abstained_stale_data")
+        self.assertIsNone(report.proposal)
+        self.assertIsNone(report.critic)
+
     def test_kill_switch_persists_and_blocks(self) -> None:
         self.store.set_kill_switch(True)
         report = self.engine.run_cycle("SPY")
@@ -298,7 +310,12 @@ class EngineAndAuditTests(Fixture):
 
 class CriticTests(unittest.TestCase):
     def test_output_text_extraction(self) -> None:
-        response = {"output": [{"content": [{"type": "output_text", "text": '{"verdict":"ALLOW"}'}]}]}
+        response = {
+            "output": [
+                {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "internal analysis"}]},
+                {"type": "message", "content": [{"type": "output_text", "text": '{"verdict":"ALLOW"}'}]},
+            ]
+        }
         self.assertEqual(json.loads(_extract_output_text(response))["verdict"], "ALLOW")
 
     def test_deepseek_network_failure_returns_veto(self) -> None:

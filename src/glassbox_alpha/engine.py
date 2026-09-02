@@ -63,6 +63,24 @@ class TradingEngine:
                 slow_period=self.settings.slow_ema,
             )
             thesis = deterministic_thesis(features)
+            if features.data_age_seconds > self.settings.max_data_age_seconds:
+                return self._record(
+                    CycleReport(
+                        run_id=run_id,
+                        created_at=started,
+                        completed_at=datetime.now(timezone.utc),
+                        status="abstained_stale_data",
+                        mode=self.settings.mode,
+                        execution_mode=self.settings.execution_mode,
+                        symbol=selected,
+                        features=features,
+                        thesis=thesis,
+                        proposal=None,
+                        critic=None,
+                        risk=None,
+                        notes=["The newest completed bar exceeded MAX_DATA_AGE_SECONDS; no candidate was created."],
+                    )
+                )
             if thesis.stance.value == "neutral":
                 return self._record(
                     CycleReport(

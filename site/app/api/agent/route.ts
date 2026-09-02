@@ -11,7 +11,12 @@ function outputText(payload: unknown): string | null {
     const content = (item as { content?: unknown }).content;
     if (!Array.isArray(content)) continue;
     for (const part of content) {
-      if (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string') return (part as { text: string }).text;
+      if (
+        part
+        && typeof part === 'object'
+        && (part as { type?: unknown }).type === 'output_text'
+        && typeof (part as { text?: unknown }).text === 'string'
+      ) return (part as { text: string }).text;
     }
   }
   return null;
@@ -37,8 +42,9 @@ export async function POST(request: Request) {
       signal: AbortSignal.timeout(8_000),
     });
     if (!dashboardResponse.ok) throw new Error('Python Agent is unavailable.');
-    const dashboard = await dashboardResponse.json() as { settings?: { mode?: string; ai_provider?: string; ai_model?: string }; recent?: unknown[] };
+    const dashboard = await dashboardResponse.json() as { settings?: { mode?: string; ai_provider?: string; ai_model?: string }; account?: { error?: string }; recent?: unknown[] };
     if (dashboard.settings?.mode !== 'alpaca') throw new Error('Python Agent is not connected to Alpaca.');
+    if (dashboard.account?.error) throw new Error('Alpaca account data is unavailable.');
     if (dashboard.settings?.ai_provider !== 'DeepSeek') throw new Error('Python Agent is not running with DeepSeek enabled.');
     const latest = dashboard.recent?.[0];
     if (!latest) throw new Error('Run the Agent at least once before asking about a decision.');

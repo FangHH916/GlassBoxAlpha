@@ -239,6 +239,7 @@ class AlpacaBroker:
         )
 
     def get_bars(self, symbol: str, limit: int = 120) -> list[Bar]:
+        from alpaca.common.enums import Sort
         from alpaca.data.enums import DataFeed
         from alpaca.data.requests import StockBarsRequest
         from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
@@ -250,10 +251,11 @@ class AlpacaBroker:
             end=now,
             timeframe=TimeFrame(5, TimeFrameUnit.Minute),
             limit=max(limit + 1, 80),
+            sort=Sort.DESC,
             feed=DataFeed.IEX,
         )
         response = self.stocks.get_stock_bars(request)
-        raw = list(response[symbol])
+        raw = sorted(response[symbol], key=lambda item: _aware(item.timestamp))
         # Do not use an incomplete five-minute bar.
         completed = [item for item in raw if (now - _aware(item.timestamp)).total_seconds() >= 300]
         return [

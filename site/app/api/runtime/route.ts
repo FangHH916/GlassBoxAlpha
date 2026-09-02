@@ -27,6 +27,13 @@ export async function GET() {
         connected: false,
       }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
     }
+    if (dashboard?.account?.error) {
+      return Response.json({
+        error: 'ALPACA_ACCOUNT_UNAVAILABLE',
+        detail: String(dashboard.account.error).slice(0, 300),
+        connected: false,
+      }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    }
     return Response.json({ ...dashboard, connected: true, fetched_at: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return Response.json({
