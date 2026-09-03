@@ -125,6 +125,8 @@ class StrategyAndRiskTests(Fixture):
         self.assertEqual(len(proposal.legs), 2)
         self.assertEqual(proposal.legs[0].action, LegAction.BUY_TO_OPEN)
         self.assertEqual(proposal.legs[1].action, LegAction.SELL_TO_OPEN)
+        natural_debit = round(proposal.legs[0].contract.ask - proposal.legs[1].contract.bid, 2)
+        self.assertEqual(proposal.limit_debit, natural_debit)
         self.assertLessEqual(proposal.max_loss, 500.0)
         self.assertGreater(proposal.max_profit or 0, 0)
 
@@ -340,7 +342,12 @@ class EngineAndAuditTests(Fixture):
         }
         self.assertTrue(self.engine._position_matches(proposal, exact))
         self.assertFalse(self.engine._position_matches(proposal, {**exact, proposal.legs[1].contract.symbol: 1.0}))
-        self.assertFalse(self.engine._position_matches(proposal, {**exact, proposal.legs[0].contract.symbol: 1.0}))
+        self.assertFalse(
+            self.engine._position_matches(
+                proposal,
+                {**exact, proposal.legs[0].contract.symbol: float(proposal.quantity + 1)},
+            )
+        )
 
 
 class CriticTests(unittest.TestCase):

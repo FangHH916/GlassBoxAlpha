@@ -88,30 +88,43 @@ class StrategyPlanner:
             key=lambda item: abs((item - (now or datetime.now(timezone.utc)).date()).days - 12),
         )
         expiry_pool = [item for item in pool if item.expiration == expiration]
-        long_leg = min(expiry_pool, key=lambda item: self._delta_distance(item, self.settings.target_long_delta, features.spot))
+        ordered_longs = sorted(
+            expiry_pool,
+            key=lambda item: self._delta_distance(item, self.settings.target_long_delta, features.spot),
+        )
 
         if account.options_trading_level >= 3:
             risk_budget = account.equity * self.settings.risk_per_trade_pct
-            short_pool = [
-                item
-                for item in expiry_pool
-                if item.symbol != long_leg.symbol
-                and (
-                    item.strike > long_leg.strike
-                    if option_type is OptionType.CALL
-                    else item.strike < long_leg.strike
-                )
-                and abs(item.strike - long_leg.strike) <= 5
-                and 0 < round(long_leg.midpoint - item.midpoint, 2) * 100 <= risk_budget
-            ]
-            if short_pool:
-                short_leg = min(
-                    short_pool,
-                    key=lambda item: self._delta_distance(item, self.settings.target_short_delta, features.spot),
+            pairs: list[tuple[OptionContractQuote, OptionContractQuote]] = []
+            for candidate_long in ordered_longs:
+                for candidate_short in expiry_pool:
+                    width = abs(candidate_short.strike - candidate_long.strike)
+                    correct_order = (
+                        candidate_short.strike > candidate_long.strike
+                        if option_type is OptionType.CALL
+                        else candidate_short.strike < candidate_long.strike
+                    )
+                    natural_debit = round(candidate_long.ask - candidate_short.bid, 2)
+                    if (
+                        candidate_short.symbol != candidate_long.symbol
+                        and correct_order
+                        and 0 < width <= 10
+                        and natural_debit <= width * 0.60
+                        and natural_debit * 100 <= risk_budget
+                    ):
+                        pairs.append((candidate_long, candidate_short))
+            if pairs:
+                long_leg, short_leg = min(
+                    pairs,
+                    key=lambda pair: (
+                        self._delta_distance(pair[0], self.settings.target_long_delta, features.spot)
+                        + self._delta_distance(pair[1], self.settings.target_short_delta, features.spot)
+                    ),
                 )
                 spread = self._spread(features, thesis, account, long_leg, short_leg, now)
                 if spread is not None:
                     return spread
+        long_leg = ordered_longs[0]
         return self._single(features, thesis, account, long_leg, now)
 
     @staticmethod
@@ -133,7 +146,10 @@ class StrategyPlanner:
         now: datetime | None,
     ) -> TradeProposal | None:
         width = abs(short_leg.strike - long_leg.strike)
-        limit_debit = round(max(0.01, long_leg.midpoint - short_leg.midpoint), 2)
+        # Price entries at the conservative natural debit (buy at ask, sell at bid).
+        # This produces a realistically marketable paper limit while ensuring sizing
+        # and max-loss checks use the worst quoted entry price, not an optimistic mid.
+        limit_debit = round(max(0.01, long_leg.ask - short_leg.bid), 2)
         if width <= 0 or limit_debit >= width:
             return None
         risk_per_contract = limit_debit * 100
@@ -169,7 +185,8 @@ class StrategyPlanner:
         contract: OptionContractQuote,
         now: datetime | None,
     ) -> TradeProposal:
-        limit_debit = round(max(0.01, contract.midpoint), 2)
+        # A buy limit at the ask is immediately marketable while remaining capped.
+        limit_debit = round(max(0.01, contract.ask), 2)
         risk_per_contract = limit_debit * 100
         # Level-2 fallback deliberately uses half of the normal risk budget.
         quantity = self._quantity(account, risk_per_contract, budget_multiplier=0.5)
@@ -188,7 +205,11 @@ class StrategyPlanner:
             max_loss=round(risk_per_contract * quantity, 2),
             max_profit=None,
             thesis=thesis,
-            rationale="Options level below 3: limited-risk single-leg fallback at half risk budget.",
+            rationale=(
+                "Options level below 3: limited-risk single-leg fallback at half risk budget."
+                if account.options_trading_level < 3
+                else "No liquid debit vertical fit the quote and risk gates; selected a limited-risk long option at half risk budget."
+            ),
         )
 
     def _quantity(self, account: AccountState, risk_per_contract: float, budget_multiplier: float = 1.0) -> int:
