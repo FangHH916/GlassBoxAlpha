@@ -6,7 +6,6 @@ import { cdnAdapter } from '@vinext/cloudflare/cache/cdn-adapter';
 
 const localBindingConfig = {
   main: 'vinext/server/app-router-entry',
-  compatibility_flags: ['nodejs_compat'],
 };
 
 export default defineConfig(async () => {
