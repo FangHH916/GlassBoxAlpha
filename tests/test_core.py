@@ -72,6 +72,11 @@ class IndicatorTests(unittest.TestCase):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_legacy_primary_universe_gets_validated_expansion(self) -> None:
+        with patch.dict(os.environ, {"UNDERLYINGS": "SPY,QQQ"}, clear=True):
+            settings = Settings.from_env(Path.cwd())
+        self.assertEqual(settings.underlyings, ("SPY", "QQQ", "GLD", "IWM"))
+
     def test_live_mode_is_not_supported(self) -> None:
         with patch.dict(os.environ, {"BROKER_MODE": "live"}, clear=True):
             with self.assertRaises(ValueError):

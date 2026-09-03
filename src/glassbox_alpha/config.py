@@ -28,12 +28,18 @@ def _csv(name: str, default: str) -> tuple[str, ...]:
     return tuple(item.strip().upper() for item in os.getenv(name, default).split(",") if item.strip())
 
 
+def _underlyings() -> tuple[str, ...]:
+    primary = _csv("UNDERLYINGS", "SPY,QQQ")
+    additional = _csv("ADDITIONAL_UNDERLYINGS", "GLD,IWM")
+    return tuple(dict.fromkeys((*primary, *additional)))
+
+
 @dataclass(frozen=True)
 class Settings:
     project_root: Path
     mode: str = "demo"
     execution_mode: str = "preview"
-    underlyings: tuple[str, ...] = ("SPY", "QQQ")
+    underlyings: tuple[str, ...] = ("SPY", "QQQ", "GLD", "IWM")
     alpaca_api_key: str | None = None
     alpaca_api_secret: str | None = None
     deepseek_api_key: str | None = None
@@ -80,7 +86,7 @@ class Settings:
             project_root=root,
             mode=os.getenv("BROKER_MODE", "demo").strip().lower(),
             execution_mode=os.getenv("EXECUTION_MODE", "preview").strip().lower(),
-            underlyings=_csv("UNDERLYINGS", "SPY,QQQ"),
+            underlyings=_underlyings(),
             alpaca_api_key=os.getenv("APCA_API_KEY_ID"),
             alpaca_api_secret=os.getenv("APCA_API_SECRET_KEY"),
             deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
