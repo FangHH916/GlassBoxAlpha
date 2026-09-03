@@ -13,7 +13,7 @@ services:
       - key: EXECUTION_MODE
         value: paper
       - key: UNDERLYINGS
-        value: SPY,QQQ
+        value: SPY,QQQ,GLD,IWM
       - key: APCA_API_KEY_ID
         sync: false
       - key: APCA_API_SECRET_KEY

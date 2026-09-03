@@ -163,7 +163,7 @@ Every watch iteration first reconciles open option positions and evaluates exit 
 
 - Only completed five-minute bars are used.
 - EMA 20/50 defines the medium trend; five-bar momentum and RSI require a short-term pullback before entry.
-- `abs(signal) >= 0.30` and deterministic confidence `>= 0.64` are required.
+- `abs(signal) >= 0.20` and deterministic confidence `>= 0.64` are required. The threshold was selected on the training segment of the expanded liquid-ETF validation universe; the out-of-sample segment remained isolated.
 - Weak signals exit before the option-chain request or DeepSeek review, avoiding repeated model calls for ineligible candidates.
 - SPY and QQQ only by default.
 - 7–21 DTE; target long delta `0.55`, short delta `0.30`.

@@ -291,7 +291,11 @@ class EngineAndAuditTests(Fixture):
     def test_weak_signal_abstains_before_option_chain_and_critic(self) -> None:
         bars = self.broker.get_bars("SPY")
         strong = build_features("SPY", bars)
-        weak = replace(strong, signal_score=0.20, baseline_stance=Stance.BULLISH)
+        weak = replace(
+            strong,
+            signal_score=self.settings.min_signal_score - 0.01,
+            baseline_stance=Stance.BULLISH,
+        )
         with (
             patch("glassbox_alpha.engine.build_features", return_value=weak),
             patch.object(self.broker, "get_option_chain", side_effect=AssertionError("option chain should not run")),
@@ -436,6 +440,10 @@ class CriticTests(unittest.TestCase):
         evidence = json.loads(sent["input"])
         self.assertEqual(evidence["allowed_evidence_ids"], expected)
         self.assertEqual(sent["reasoning"], {"effort": "none"})
+        self.assertIn("trend-pullback", sent["instructions"])
+        self.assertIn("do not require reversal confirmation", sent["instructions"])
+        self.assertIn("never approves execution", sent["instructions"])
+        self.assertIn("are debit spreads", sent["instructions"])
         self.assertEqual(verdict.verdict, "ALLOW")
 
 

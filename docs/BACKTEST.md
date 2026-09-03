@@ -4,7 +4,7 @@ Run date: 2026-09-03
 
 ## Result
 
-The selected configuration is the `trend_pullback` signal with a minimum absolute score of `0.30`.
+The original SPY/QQQ-only validation selected the `trend_pullback` signal with a minimum absolute score of `0.30`. The expanded-universe production update is documented below.
 
 | Segment | Period | Trades | Win rate | Avg. return | Compounded proxy return | Max drawdown | Profit factor |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -29,6 +29,12 @@ Reproduce with:
 ```powershell
 .\.venv\Scripts\python.exe tools\backtest_signal.py --days 120
 ```
+
+## Expanded liquid-ETF validation
+
+On 2026-09-04, the same walk-forward selector was rerun over SPY, QQQ, IWM, DIA, GLD, TLT, XLF, and SMH. The training segment selected `trend_pullback` with a `0.20` threshold. It produced 172 training signals with a 12.059% compounded underlying proxy return and 4.779% maximum drawdown. The untouched out-of-sample segment produced 75 signals, a 38.67% win rate, a 1.258% compounded proxy return, and a 4.720% maximum drawdown.
+
+Production therefore uses `0.20` and a smaller liquid subset—SPY, QQQ, GLD, and IWM—while preserving the same option liquidity, defined-risk, exposure, loss, drawdown, and daily-trade gates. The lower win rate is reported explicitly; selection was based on the training segment, not the out-of-sample result.
 
 ## Important limitation
 
