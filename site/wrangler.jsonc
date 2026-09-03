@@ -13,7 +13,10 @@
   },
   "cache": {
     "enabled": true
-  }
-,
+  },
+  "vars": {
+    "AGENT_API_URL": "https://glassbox-alpha-agent.onrender.com",
+    "AI_MODEL": "deepseek-v4-flash"
+  },
   "version_metadata": { "binding": "CF_VERSION_METADATA" }
 }
