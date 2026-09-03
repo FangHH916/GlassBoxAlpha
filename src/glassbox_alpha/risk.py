@@ -75,6 +75,7 @@ class RiskKernel:
 
         required_level = 3 if len(proposal.legs) > 1 else 2
         add("option_level", "Options permission", account.options_trading_level >= required_level, "Account permission must support the structure.", account.options_trading_level, required_level)
+        add("pending_orders", "Pending-order lock", account.pending_orders == 0, "Wait for every existing competition-account order to reach a terminal state before opening new risk.", account.pending_orders, 0)
         add("position_limit", "Position limit", account.open_option_positions < self.settings.max_positions, "Cap simultaneous option positions.", account.open_option_positions, self.settings.max_positions)
         add("trade_limit", "Daily trade limit", account.trades_today < self.settings.max_trades_per_day, "Cap new entries per session.", account.trades_today, self.settings.max_trades_per_day)
 

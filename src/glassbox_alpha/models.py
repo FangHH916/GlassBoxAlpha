@@ -154,6 +154,7 @@ class AccountState:
     competition_account_match: bool = True
     competition_account_fresh: bool = True
     competition_balance_verified: bool = True
+    pending_orders: int = 0
 
     @property
     def drawdown_pct(self) -> float:

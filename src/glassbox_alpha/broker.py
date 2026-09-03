@@ -200,11 +200,16 @@ class AlpacaBroker:
         self._last_account_number: str | None = None
 
     def get_account(self) -> AccountState:
-        from alpaca.trading.enums import AssetClass
+        from alpaca.trading.enums import AssetClass, QueryOrderStatus
+        from alpaca.trading.requests import GetOrdersRequest
 
         account = self.trading.get_account()
         clock = self.trading.get_clock()
         positions = self.trading.get_all_positions()
+        # This is a dedicated competition account. Any open order reserves the
+        # single entry slot until Alpaca reaches a terminal state, including an
+        # atomic MLEG order whose top-level symbol is null.
+        pending_orders = len(self.trading.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN)))
         account_id = str(account.id)
         account_number = str(account.account_number)
         self._last_account_id = account_id
@@ -240,6 +245,7 @@ class AlpacaBroker:
             ),
             competition_account_fresh=created_at >= competition_start,
             competition_balance_verified=False,
+            pending_orders=pending_orders,
         )
 
     def get_bars(self, symbol: str, limit: int = 120) -> list[Bar]:

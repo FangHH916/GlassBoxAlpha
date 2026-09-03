@@ -150,7 +150,7 @@ class StrategyAndRiskTests(Fixture):
         )
         self.assertTrue(decision.approved)
         self.assertTrue(all(item.passed for item in decision.checks))
-        self.assertEqual(len(decision.checks), 32)
+        self.assertEqual(len(decision.checks), 33)
 
     def test_tampered_economics_and_symbol_are_rejected(self) -> None:
         account, features, proposal, critic = self.candidate()
@@ -187,6 +187,20 @@ class StrategyAndRiskTests(Fixture):
         self.assertFalse(decision.approved)
         self.assertIn("quote_freshness", failed)
         self.assertIn("kill_switch", failed)
+
+    def test_pending_broker_order_blocks_a_new_entry(self) -> None:
+        account, features, proposal, critic = self.candidate()
+        decision = RiskKernel(self.settings).evaluate(
+            proposal,
+            features,
+            critic,
+            replace(account, pending_orders=1),
+            duplicate=False,
+            kill_switch=False,
+        )
+        self.assertFalse(decision.approved)
+        pending = next(check for check in decision.checks if check.code == "pending_orders")
+        self.assertFalse(pending.passed)
 
     def test_order_payload_is_one_atomic_mleg(self) -> None:
         _, _, proposal, _ = self.candidate()
