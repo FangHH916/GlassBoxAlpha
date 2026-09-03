@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 type ChatMessage = { role: 'agent' | 'user'; content: string; model?: string };
 type RiskCheck = { label: string; passed: boolean; observed: unknown; limit: unknown };
@@ -27,6 +27,11 @@ type RuntimeState = {
   stats: { total_cycles: number; by_status: Record<string, number>; audit_chain_valid: boolean; audit_records: number };
   recent: RuntimeReport[]; charts: Record<string, Array<{ timestamp: string; close: number }>>;
 };
+type ConnectionPhase = 'connecting' | 'waking' | 'online' | 'offline';
+
+const RUNTIME_CACHE_KEY = 'glassbox:last-runtime';
+const WAKE_WINDOW_MS = 90_000;
+const POLL_INTERVAL_MS = 5_000;
 
 const money = (value: number | undefined) => value === undefined ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 const signedMoney = (value: number | undefined) => value === undefined ? '—' : `${value >= 0 ? '+' : '−'}${money(Math.abs(value))}`;
@@ -38,6 +43,10 @@ export default function Home() {
   const [runtime, setRuntime] = useState<RuntimeState | null>(null);
   const [runtimeError, setRuntimeError] = useState('Connecting to the Python agent…');
   const [runtimeLoading, setRuntimeLoading] = useState(true);
+  const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>('connecting');
+  const [retryCount, setRetryCount] = useState(0);
+  const [cachedAt, setCachedAt] = useState('');
+  const wakeStartedAt = useRef<number | null>(null);
   const [cycleBusy, setCycleBusy] = useState('');
   const [cycleNotice, setCycleNotice] = useState('');
   const [selectedRunId, setSelectedRunId] = useState('');
@@ -52,25 +61,43 @@ export default function Home() {
       if (!response.ok) throw new Error(payload.detail || payload.error || 'Python agent is unavailable');
       setRuntime(payload);
       setRuntimeError('');
+      setConnectionPhase('online');
+      setRetryCount(0);
+      setCachedAt('');
+      wakeStartedAt.current = null;
+      try { window.localStorage.setItem(RUNTIME_CACHE_KEY, JSON.stringify({ runtime: payload, savedAt: payload.fetched_at })); } catch { /* storage is optional */ }
       setSelectedRunId((current) => current || payload.recent?.[0]?.run_id || '');
     } catch (error) {
-      setRuntime(null);
+      const now = Date.now();
+      wakeStartedAt.current ??= now;
+      setConnectionPhase(now - wakeStartedAt.current < WAKE_WINDOW_MS ? 'waking' : 'offline');
+      setRetryCount((current) => current + 1);
       setRuntimeError(error instanceof Error ? error.message : 'Python agent is unavailable');
     } finally { setRuntimeLoading(false); }
   }
 
   useEffect(() => {
     let active = true;
-    async function poll() { if (active) await refreshRuntime(); }
+    let timer = 0;
+    try {
+      const cached = JSON.parse(window.localStorage.getItem(RUNTIME_CACHE_KEY) ?? 'null') as { runtime?: RuntimeState; savedAt?: string } | null;
+      if (cached?.runtime) { setRuntime(cached.runtime); setCachedAt(cached.savedAt ?? cached.runtime.fetched_at); }
+    } catch { /* a damaged cache should never block live data */ }
+    async function poll() {
+      if (!active) return;
+      await refreshRuntime();
+      if (active) timer = window.setTimeout(poll, POLL_INTERVAL_MS);
+    }
     void poll();
-    const timer = window.setInterval(poll, 5000);
-    return () => { active = false; window.clearInterval(timer); };
+    return () => { active = false; window.clearTimeout(timer); };
   }, []);
 
+  const runtimeOnline = connectionPhase === 'online';
+  const runtimeWaking = connectionPhase === 'waking' || connectionPhase === 'connecting';
   const account = runtime?.account && !runtime.account.error ? runtime.account : null;
   const latest = runtime?.recent?.[0];
   const selected = runtime?.recent.find((item) => item.run_id === selectedRunId) ?? latest;
-  const aiOnline = runtime?.settings.ai_provider === 'DeepSeek' && Boolean(runtime.settings.ai_model);
+  const aiOnline = runtimeOnline && runtime?.settings.ai_provider === 'DeepSeek' && Boolean(runtime.settings.ai_model);
   const chartSymbol = latest?.symbol ?? runtime?.settings.underlyings?.[0];
   const bars = useMemo(() => chartSymbol ? runtime?.charts?.[chartSymbol] ?? [] : [], [chartSymbol, runtime?.charts]);
   const chartPath = useMemo(() => {
@@ -80,7 +107,7 @@ export default function Home() {
   }, [bars]);
 
   async function runLiveCycle(symbol: string) {
-    if (!runtime || cycleBusy) return;
+    if (!runtime || !runtimeOnline || cycleBusy) return;
     setCycleBusy(symbol); setCycleNotice('');
     try {
       const response = await fetch('/api/runtime', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol }) });
@@ -112,7 +139,7 @@ export default function Home() {
     <main className="appShell">
       <header className="appHeader">
         <a className="brand" href="#top"><span className="mark">G</span><span>GLASSBOX <b>ALPHA</b></span></a>
-        <div className="headerStatus"><span className={`connectionDot ${runtime ? 'online' : ''}`} /><b>{runtimeLoading ? 'CONNECTING' : runtime ? 'ALPACA CONNECTED' : 'AGENT OFFLINE'}</b><span>PAPER ONLY</span></div>
+        <div className="headerStatus"><span className={`connectionDot ${runtimeOnline ? 'online' : runtimeWaking ? 'waking' : ''}`} /><b>{connectionPhase === 'online' ? 'ALPACA CONNECTED' : connectionPhase === 'offline' ? 'AGENT OFFLINE' : connectionPhase === 'waking' ? 'WAKING AGENT' : 'CONNECTING'}</b><span>PAPER ONLY</span></div>
       </header>
 
       <div className="workspace" id="top">
@@ -126,7 +153,7 @@ export default function Home() {
           </div>
         </section>
 
-        {!runtime && <section className="offlinePanel"><div><span>RUNTIME CONNECTION</span><h2>{runtimeLoading ? 'Connecting to the Agent…' : 'Python Agent is offline'}</h2><p>{runtimeError}</p></div><code>python -m glassbox_alpha serve --host 127.0.0.1 --port 8787</code></section>}
+        {!runtimeOnline && <section className={`offlinePanel ${runtimeWaking ? 'wakingPanel' : ''}`}><div><span>RUNTIME CONNECTION</span><h2>{connectionPhase === 'offline' ? 'Agent could not be reached' : 'Waking the Paper Trading Agent…'}</h2><p>{connectionPhase === 'offline' ? runtimeError : `Render free instances can take up to a minute to start. Retrying automatically${retryCount ? ` · attempt ${retryCount}` : ''}.`}{cachedAt ? ` Showing the last verified snapshot from ${new Date(cachedAt).toLocaleString()}.` : ''}</p></div><div className="wakeStatus"><i /><b>{runtimeWaking ? 'AUTO RETRY ACTIVE' : 'RETRYING IN BACKGROUND'}</b><small>{runtimeLoading ? 'Connecting…' : 'Trading and chat remain locked until verified.'}</small></div></section>}
 
         <section className="metrics" aria-label="Live Alpaca account">
           <article><span>ACCOUNT EQUITY</span><b>{money(account?.equity)}</b><small>{account ? `Alpaca ${account.account_id_masked ?? 'masked'}` : 'Broker unavailable'}</small></article>
@@ -142,7 +169,7 @@ export default function Home() {
               <div className="pipeline" aria-label="Agent pipeline">
                 {[[ '01', 'MARKET', 'Completed bars' ], [ '02', 'PROPOSE', 'Defined risk' ], [ '03', 'CRITIC', 'DeepSeek veto' ], [ '04', 'RISK', 'Hard gates' ], [ '05', 'EXECUTE', 'Alpaca Paper' ]].map(([number, title, note]) => <div key={number}><span>{number}</span><b>{title}</b><small>{note}</small></div>)}
               </div>
-              <div className="runRow"><div>{runtime?.settings.underlyings?.map((symbol) => <button key={symbol} type="button" onClick={() => void runLiveCycle(symbol)} disabled={!runtime || !account?.market_open || Boolean(cycleBusy)}>{cycleBusy === symbol ? 'RUNNING…' : `RUN ${symbol}`}</button>)}</div><p>{cycleNotice || (account && !account.market_open ? 'Entry scans pause while the regular market is closed.' : 'A neutral signal safely abstains. Paper execution requires every layer to approve.')}</p></div>
+              <div className="runRow"><div>{runtime?.settings.underlyings?.map((symbol) => <button key={symbol} type="button" onClick={() => void runLiveCycle(symbol)} disabled={!runtimeOnline || !account?.market_open || Boolean(cycleBusy)}>{cycleBusy === symbol ? 'RUNNING…' : `RUN ${symbol}`}</button>)}</div><p>{cycleNotice || (!runtimeOnline ? 'Controls unlock automatically after the live Agent connection is verified.' : account && !account.market_open ? 'Entry scans pause while the regular market is closed.' : 'A neutral signal safely abstains. Paper execution requires every layer to approve.')}</p></div>
             </article>
 
             <article className="decisionCard">

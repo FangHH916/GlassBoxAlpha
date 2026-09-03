@@ -1,7 +1,7 @@
 const runtimeBase = (process.env.AGENT_API_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 const runtimeToken = process.env.AGENT_API_TOKEN;
 
-async function runtimeRequest(path: string, init?: RequestInit) {
+async function runtimeRequest(path: string, init?: RequestInit, timeoutMs = 10_000) {
   const response = await fetch(`${runtimeBase}${path}`, {
     ...init,
     headers: {
@@ -10,7 +10,7 @@ async function runtimeRequest(path: string, init?: RequestInit) {
       ...(init?.headers ?? {}),
     },
     cache: 'no-store',
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const payload = await response.json();
   if (!response.ok) throw new Error(payload?.error || `Python Agent returned ${response.status}`);
@@ -19,7 +19,7 @@ async function runtimeRequest(path: string, init?: RequestInit) {
 
 export async function GET() {
   try {
-    const dashboard = await runtimeRequest('/api/dashboard');
+    const dashboard = await runtimeRequest('/api/dashboard', undefined, 45_000);
     if (dashboard?.settings?.mode !== 'alpaca') {
       return Response.json({
         error: 'ALPACA_NOT_CONFIGURED',
