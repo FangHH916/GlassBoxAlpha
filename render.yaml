@@ -2,15 +2,11 @@ services:
   - type: web
     name: glassbox-alpha-agent
     runtime: docker
-    plan: 0.5c-512mb
+    plan: free
     region: singapore
     branch: main
     healthCheckPath: /health
     autoDeployTrigger: commit
-    disk:
-      name: audit-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: BROKER_MODE
         value: alpaca
@@ -47,6 +43,6 @@ services:
       - key: AGENT_API_TOKEN
         generateValue: true
       - key: DATABASE_PATH
-        value: /var/data/glassbox_alpha.sqlite3
+        value: /tmp/glassbox_alpha.sqlite3
       - key: KILL_SWITCH_PATH
-        value: /var/data/KILL_SWITCH
+        value: /tmp/KILL_SWITCH

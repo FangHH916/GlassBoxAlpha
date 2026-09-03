@@ -242,7 +242,7 @@ Tests cover paper-only configuration, the execution interlock, candidate constru
 
 ## Render deployment
 
-The repository includes `render.yaml` for a GitHub-connected Render Blueprint. It builds the official Alpaca CLI into the image, runs the authenticated API and five-minute autonomous scanner in one process, and stores the audit database and kill switch on `/var/data`. Use a paid always-on web service with the smallest persistent disk; Render's free web service sleeps and does not preserve SQLite files.
+The repository includes `render.yaml` for a GitHub-connected free Render Blueprint. It builds the official Alpaca CLI into the image and runs the authenticated API and five-minute scanner in one process. The free service sleeps when idle and stores SQLite audit data only on its ephemeral filesystem, so decisions and the kill switch may be reset after a restart or redeploy. For continuous autonomous monitoring and durable Trade Passports, upgrade the service and attach a persistent disk mounted at `/var/data`.
 
 After the Blueprint is live, copy its generated `AGENT_API_TOKEN` into the frontend's server-side environment and set `AGENT_API_URL` to the service's `https://...onrender.com` URL. Never prefix either variable with `NEXT_PUBLIC_`.
 
