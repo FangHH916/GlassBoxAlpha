@@ -2,6 +2,7 @@ import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
 import { defineConfig } from 'vite';
+import { cdnAdapter } from '@vinext/cloudflare/cache/cdn-adapter';
 
 const localBindingConfig = {
   main: 'vinext/server/app-router-entry',
@@ -18,7 +19,9 @@ export default defineConfig(async () => {
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
     plugins: [
-      vinext(),
+      vinext({
+        cache: { cdn: cdnAdapter() },
+      }),
       sites(),
       cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
