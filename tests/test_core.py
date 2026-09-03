@@ -18,7 +18,7 @@ from glassbox_alpha.config import Settings
 from glassbox_alpha.critic import DeepSeekCritic, DeterministicCritic, _extract_output_text
 from glassbox_alpha.engine import TradingEngine
 from glassbox_alpha.indicators import build_features, ema, rsi
-from glassbox_alpha.models import LegAction
+from glassbox_alpha.models import LegAction, Stance
 from glassbox_alpha.risk import RiskKernel
 from glassbox_alpha.server import serve
 from glassbox_alpha.strategy import StrategyPlanner, deterministic_thesis
@@ -263,6 +263,19 @@ class EngineAndAuditTests(Fixture):
         self.assertFalse(valid)
         self.assertEqual(broken_at, 1)
 
+    def test_dashboard_hides_stale_noise_without_deleting_audit_records(self) -> None:
+        original = self.broker.get_bars
+
+        def stale_bars(symbol: str, limit: int = 120):
+            return [replace(bar, timestamp=bar.timestamp - timedelta(hours=2)) for bar in original(symbol, limit)]
+
+        with patch.object(self.broker, "get_bars", side_effect=stale_bars):
+            self.engine.run_cycle("SPY")
+        self.engine.run_cycle("QQQ")
+        self.assertEqual(len(self.store.recent()), 2)
+        self.assertEqual(len(self.store.recent_meaningful()), 1)
+        self.assertEqual(self.store.verify_chain(), (True, 2))
+
     def test_stale_market_data_abstains_before_candidate_creation(self) -> None:
         original = self.broker.get_bars
 
@@ -272,6 +285,19 @@ class EngineAndAuditTests(Fixture):
         with patch.object(self.broker, "get_bars", side_effect=stale_bars):
             report = self.engine.run_cycle("SPY")
         self.assertEqual(report.status, "abstained_stale_data")
+        self.assertIsNone(report.proposal)
+        self.assertIsNone(report.critic)
+
+    def test_weak_signal_abstains_before_option_chain_and_critic(self) -> None:
+        bars = self.broker.get_bars("SPY")
+        strong = build_features("SPY", bars)
+        weak = replace(strong, signal_score=0.20, baseline_stance=Stance.BULLISH)
+        with (
+            patch("glassbox_alpha.engine.build_features", return_value=weak),
+            patch.object(self.broker, "get_option_chain", side_effect=AssertionError("option chain should not run")),
+        ):
+            report = self.engine.run_cycle("SPY")
+        self.assertEqual(report.status, "abstained_weak_signal")
         self.assertIsNone(report.proposal)
         self.assertIsNone(report.critic)
 
@@ -369,6 +395,48 @@ class CriticTests(unittest.TestCase):
             verdict = DeepSeekCritic("test-key", "test-model").review(proposal, features)
         self.assertEqual(verdict.verdict, "VETO")
         self.assertEqual(verdict.source, "deepseek_fail_closed")
+
+    def test_deepseek_receives_exact_allowed_evidence_ids(self) -> None:
+        settings = Settings(project_root=Path.cwd())
+        broker = DemoBroker(settings)
+        features = build_features("SPY", broker.get_bars("SPY"))
+        proposal = StrategyPlanner(settings).plan(
+            features,
+            deterministic_thesis(features),
+            broker.get_option_chain("SPY", features.spot),
+            broker.get_account(),
+        )
+        assert proposal is not None
+        expected = [
+            f"bars:{features.symbol}:{features.timestamp.isoformat()}",
+            f"candidate:{proposal.proposal_id}",
+        ]
+        output = {
+            "candidate_id": proposal.proposal_id,
+            "verdict": "ALLOW",
+            "risk_flags": [],
+            "evidence_ids": expected,
+            "thesis": "Candidate matches the supplied evidence.",
+            "invalidated_if": "Signal changes.",
+        }
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps({"output_text": json.dumps(output)}).encode()
+
+        with patch("urllib.request.urlopen", return_value=Response()) as request:
+            verdict = DeepSeekCritic("test-key", "test-model").review(proposal, features)
+        sent = json.loads(request.call_args.args[0].data.decode())
+        evidence = json.loads(sent["input"])
+        self.assertEqual(evidence["allowed_evidence_ids"], expected)
+        self.assertEqual(sent["reasoning"], {"effort": "none"})
+        self.assertEqual(verdict.verdict, "ALLOW")
 
 
 if __name__ == "__main__":

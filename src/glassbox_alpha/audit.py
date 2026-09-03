@@ -102,6 +102,40 @@ class AuditStore:
                 """,
                 (safe_limit,),
             ).fetchall()
+        return self._decode_rows(rows)
+
+    def recent_meaningful(self, limit: int = 20) -> list[dict[str, object]]:
+        """Hide repetitive off-hours freshness records without deleting audit evidence."""
+        safe_limit = max(1, min(limit, 200))
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT sequence, payload_json, record_hash, previous_hash
+                FROM decisions
+                WHERE status != 'abstained_stale_data'
+                ORDER BY sequence DESC LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        return self._decode_rows(rows)
+
+    def submitted_entries(self, limit: int = 200) -> list[dict[str, object]]:
+        """Load entry Passports by status so audit noise cannot hide an open position."""
+        safe_limit = max(1, min(limit, 1000))
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT sequence, payload_json, record_hash, previous_hash
+                FROM decisions
+                WHERE status = 'submitted_paper'
+                ORDER BY sequence DESC LIMIT ?
+                """,
+                (safe_limit,),
+            ).fetchall()
+        return self._decode_rows(rows)
+
+    @staticmethod
+    def _decode_rows(rows: list[sqlite3.Row]) -> list[dict[str, object]]:
         result: list[dict[str, object]] = []
         for row in rows:
             payload = json.loads(row["payload_json"])

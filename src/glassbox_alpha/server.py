@@ -112,14 +112,17 @@ def serve(
     stop_event = threading.Event()
 
     def autonomous_loop() -> None:
-        interval = max(30, watch_interval)
+        # The signal uses completed five-minute bars. A shorter loop only
+        # repeats identical evidence, spends API quota, and bloats the ledger.
+        interval = max(300, watch_interval)
         while not stop_event.is_set():
             try:
                 for report in engine.supervise_positions():
                     print(f"{report.completed_at.isoformat()} {report.symbol} {report.status}", flush=True)
-                for symbol in engine.settings.underlyings:
-                    report = engine.run_cycle(symbol)
-                    print(f"{report.completed_at.isoformat()} {symbol} {report.status}", flush=True)
+                if engine.broker.get_account().market_open:
+                    for symbol in engine.settings.underlyings:
+                        report = engine.run_cycle(symbol)
+                        print(f"{report.completed_at.isoformat()} {symbol} {report.status}", flush=True)
             except Exception as exc:
                 print(f"Autonomous scan failed closed: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
             stop_event.wait(interval)

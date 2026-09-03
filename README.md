@@ -157,13 +157,14 @@ Or run autonomous monitoring:
 glassbox-alpha watch --interval 300
 ```
 
-Every watch iteration first reconciles open option positions and evaluates exit policy, then scans configured underlyings. Entry is limited to three trades per day and one open option structure.
+Every watch iteration first reconciles open option positions and evaluates exit policy. Entry scans run only while the regular market is open, on a minimum five-minute interval matching the completed bars. Entry is limited to three trades per day and one open option structure.
 
 ## Entry policy
 
 - Only completed five-minute bars are used.
 - EMA 20/50 defines the medium trend; five-bar momentum and RSI require a short-term pullback before entry.
 - `abs(signal) >= 0.30` and deterministic confidence `>= 0.64` are required.
+- Weak signals exit before the option-chain request or DeepSeek review, avoiding repeated model calls for ineligible candidates.
 - SPY and QQQ only by default.
 - 7–21 DTE; target long delta `0.55`, short delta `0.30`.
 - Each leg needs bid/ask, open interest `>= 500`, spread `<= 12%`, and a fresh timestamp.

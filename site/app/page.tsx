@@ -142,7 +142,7 @@ export default function Home() {
               <div className="pipeline" aria-label="Agent pipeline">
                 {[[ '01', 'MARKET', 'Completed bars' ], [ '02', 'PROPOSE', 'Defined risk' ], [ '03', 'CRITIC', 'DeepSeek veto' ], [ '04', 'RISK', 'Hard gates' ], [ '05', 'EXECUTE', 'Alpaca Paper' ]].map(([number, title, note]) => <div key={number}><span>{number}</span><b>{title}</b><small>{note}</small></div>)}
               </div>
-              <div className="runRow"><div>{runtime?.settings.underlyings?.map((symbol) => <button key={symbol} type="button" onClick={() => void runLiveCycle(symbol)} disabled={!runtime || Boolean(cycleBusy)}>{cycleBusy === symbol ? 'RUNNING…' : `RUN ${symbol}`}</button>)}</div><p>{cycleNotice || 'A neutral signal safely abstains. Paper execution requires every layer to approve.'}</p></div>
+              <div className="runRow"><div>{runtime?.settings.underlyings?.map((symbol) => <button key={symbol} type="button" onClick={() => void runLiveCycle(symbol)} disabled={!runtime || !account?.market_open || Boolean(cycleBusy)}>{cycleBusy === symbol ? 'RUNNING…' : `RUN ${symbol}`}</button>)}</div><p>{cycleNotice || (account && !account.market_open ? 'Entry scans pause while the regular market is closed.' : 'A neutral signal safely abstains. Paper execution requires every layer to approve.')}</p></div>
             </article>
 
             <article className="decisionCard">

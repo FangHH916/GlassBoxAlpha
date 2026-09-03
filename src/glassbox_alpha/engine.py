@@ -99,6 +99,30 @@ class TradingEngine:
                         notes=["The deterministic candidate factory found no directional edge."],
                     )
                 )
+            if (
+                abs(features.signal_score) < self.settings.min_signal_score
+                or thesis.confidence < self.settings.min_confidence
+            ):
+                return self._record(
+                    CycleReport(
+                        run_id=run_id,
+                        created_at=started,
+                        completed_at=datetime.now(timezone.utc),
+                        status="abstained_weak_signal",
+                        mode=self.settings.mode,
+                        execution_mode=self.settings.execution_mode,
+                        symbol=selected,
+                        features=features,
+                        thesis=thesis,
+                        proposal=None,
+                        critic=None,
+                        risk=None,
+                        notes=[
+                            "Signal or confidence was below the configured entry threshold; "
+                            "the option chain and AI critic were not called."
+                        ],
+                    )
+                )
             chain = self.broker.get_option_chain(selected, features.spot)
             proposal = self.planner.plan(features, thesis, chain, account)
             if proposal is None:
@@ -231,7 +255,7 @@ class TradingEngine:
             "account": account,
             "kill_switch": self.store.kill_switch_engaged,
             "stats": self.store.stats(),
-            "recent": self.store.recent(20),
+            "recent": self.store.recent_meaningful(20),
             "charts": self.last_bars,
         }
 
@@ -245,9 +269,9 @@ class TradingEngine:
             if not positions:
                 return reports
             entries: dict[str, dict[str, object]] = {}
-            for saved in self.store.recent(200):
+            for saved in self.store.submitted_entries(1000):
                 proposal_raw = saved.get("proposal")
-                if saved.get("status") == "submitted_paper" and isinstance(proposal_raw, dict):
+                if isinstance(proposal_raw, dict):
                     entries.setdefault(str(proposal_raw["proposal_id"]), proposal_raw)
             account = self._account_with_local_state(self.broker.get_account())
             for proposal_raw in entries.values():

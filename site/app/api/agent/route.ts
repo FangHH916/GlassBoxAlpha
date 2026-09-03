@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model,
         store: false,
+        reasoning: { effort: 'none' },
         max_output_tokens: 260,
         instructions: 'You are GlassBox Analyst. Answer only from the supplied real Python Agent audit record. Be concise. Never invent prices, account values, orders, fills, or evidence. Never give investment advice. State when the evidence cannot answer. You have no order tool and cannot modify the candidate.',
         input: `Latest immutable Agent audit record:\n${JSON.stringify(latest)}\n\nUser question: ${question}`,
