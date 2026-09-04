@@ -312,6 +312,20 @@ class StrategyAndRiskTests(Fixture):
 
 
 class EngineAndAuditTests(Fixture):
+    def test_supervisor_does_not_submit_while_market_closed_or_order_pending(self) -> None:
+        with patch.object(
+            self.broker,
+            "get_account",
+            return_value=replace(self.broker.get_account(), market_open=False),
+        ), patch.object(self.broker, "get_open_positions", side_effect=AssertionError("must stop before positions")):
+            self.assertEqual(self.engine.supervise_positions(), [])
+        with patch.object(
+            self.broker,
+            "get_account",
+            return_value=replace(self.broker.get_account(), pending_orders=1),
+        ), patch.object(self.broker, "get_open_positions", side_effect=AssertionError("must stop before positions")):
+            self.assertEqual(self.engine.supervise_positions(), [])
+
     def test_preview_cycle_never_submits_an_order(self) -> None:
         report = self.engine.run_cycle("SPY")
         self.assertEqual(report.status, "approved_preview")

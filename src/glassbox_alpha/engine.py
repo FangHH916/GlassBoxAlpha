@@ -268,6 +268,12 @@ class TradingEngine:
             raise RuntimeError("A decision cycle is already running")
         reports: list[CycleReport] = []
         try:
+            account = self._account_with_local_state(self.broker.get_account())
+            # Options only execute in the regular session. Existing broker
+            # orders own the structure until terminal, including after a
+            # service restart where the ephemeral audit store is empty.
+            if not account.market_open or account.pending_orders > 0:
+                return reports
             positions = self.broker.get_open_positions()
             if not positions:
                 return reports
@@ -278,7 +284,6 @@ class TradingEngine:
                     entries.setdefault(str(proposal_raw["proposal_id"]), proposal_raw)
             for recovered in self.broker.recover_open_proposals():
                 entries.setdefault(recovered.proposal_id, to_primitive(recovered))
-            account = self._account_with_local_state(self.broker.get_account())
             for proposal_raw in entries.values():
                 proposal = proposal_from_primitive(proposal_raw)
                 if self.store.has_status(proposal.proposal_id, "exit_submitted"):
