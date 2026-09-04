@@ -1,6 +1,6 @@
 const runtimeBase = (process.env.AGENT_API_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 const runtimeToken = process.env.AGENT_API_TOKEN;
-const ownerToken = process.env.OWNER_CONTROL_TOKEN;
+const ownerToken = process.env.OWNER_CONTROL_TOKEN?.trim();
 
 function authorized(request: Request) {
   const supplied = request.headers.get('Authorization') ?? '';
