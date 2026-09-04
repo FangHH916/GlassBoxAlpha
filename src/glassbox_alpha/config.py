@@ -30,8 +30,11 @@ def _csv(name: str, default: str) -> tuple[str, ...]:
 
 def _underlyings() -> tuple[str, ...]:
     primary = _csv("UNDERLYINGS", "SPY,QQQ")
-    additional = _csv("ADDITIONAL_UNDERLYINGS", "GLD,IWM,DIA,TLT,XLF,SMH")
-    return tuple(dict.fromkeys((*primary, *additional)))
+    additional = _csv("ADDITIONAL_UNDERLYINGS", "GLD,IWM")
+    # Kept separate so existing Blueprint services that retain the legacy
+    # ADDITIONAL_UNDERLYINGS value still receive the validated expansion.
+    validated_expansion = _csv("VALIDATED_UNIVERSE_EXPANSION", "DIA,TLT,XLF,SMH")
+    return tuple(dict.fromkeys((*primary, *additional, *validated_expansion)))
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,9 @@ services:
       - key: UNDERLYINGS
         value: SPY,QQQ
       - key: ADDITIONAL_UNDERLYINGS
-        value: GLD,IWM,DIA,TLT,XLF,SMH
+        value: GLD,IWM
+      - key: VALIDATED_UNIVERSE_EXPANSION
+        value: DIA,TLT,XLF,SMH
       - key: RISK_PER_TRADE_PCT
         value: "0.0025"
       - key: MAX_OPTION_EXPOSURE_PCT
