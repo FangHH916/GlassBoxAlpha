@@ -429,6 +429,11 @@ class EngineAndAuditTests(Fixture):
             0,
         )
 
+    def test_broker_daily_count_survives_empty_local_audit(self) -> None:
+        broker_state = replace(self.broker.get_account(), trades_today=5)
+        reconciled = self.engine._account_with_local_state(broker_state)
+        self.assertEqual(reconciled.trades_today, 5)
+
     def test_exit_requires_exact_position_direction_and_quantity(self) -> None:
         _, _, proposal, _ = self.candidate()
         exact = {

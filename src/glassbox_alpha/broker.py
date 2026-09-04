@@ -279,6 +279,19 @@ class AlpacaBroker:
         # single entry slot until Alpaca reaches a terminal state, including an
         # atomic MLEG order whose top-level symbol is null.
         pending_orders = len(self.trading.get_orders(GetOrdersRequest(status=QueryOrderStatus.OPEN)))
+        clock_local = clock.timestamp
+        if clock_local.tzinfo is None:
+            clock_local = clock_local.replace(tzinfo=timezone.utc)
+        session_start = clock_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+        today_orders = self.trading.get_orders(
+            GetOrdersRequest(status=QueryOrderStatus.ALL, after=session_start, limit=500, nested=True)
+        )
+        trades_today = sum(
+            1
+            for order in today_orders
+            if str(getattr(order, "client_order_id", "")).startswith("gba-")
+            and not str(getattr(order, "client_order_id", "")).endswith("-x")
+        )
         account_id = str(account.id)
         account_number = str(account.account_number)
         self._last_account_id = account_id
@@ -302,7 +315,7 @@ class AlpacaBroker:
             daily_pnl=equity - last_equity,
             high_watermark=max(equity, last_equity),
             open_option_positions=len(option_positions),
-            trades_today=0,
+            trades_today=trades_today,
             options_trading_level=int(account.options_trading_level or 0),
             is_paper=True,
             market_open=bool(clock.is_open),

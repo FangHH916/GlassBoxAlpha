@@ -231,7 +231,7 @@ class TradingEngine:
         return replace(
             account,
             high_watermark=high,
-            trades_today=self.store.submissions_today(),
+            trades_today=max(account.trades_today, self.store.submissions_today()),
             competition_balance_verified=baseline_verified,
         )
 
