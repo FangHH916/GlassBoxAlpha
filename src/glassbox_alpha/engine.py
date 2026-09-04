@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import threading
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from uuid import uuid4
 from .audit import AuditStore
 from .broker import Broker
 from .config import Settings
+from .control import RuntimeControl, effective_settings, load_control, save_control, validate_control
 from .critic import Critic
 from .indicators import build_features
 from .models import AccountState, CycleReport, MarketFeatures, TradeProposal, proposal_from_primitive, to_primitive
@@ -23,16 +25,30 @@ class TradingEngine:
         critic: Critic,
         store: AuditStore,
     ):
-        self.settings = settings
+        self.base_settings = settings
+        self.control = load_control(store, settings)
+        self.settings = effective_settings(settings, self.control)
         self.broker = broker
         self.critic = critic
         self.store = store
-        self.planner = StrategyPlanner(settings)
-        self.risk = RiskKernel(settings)
+        self.planner = StrategyPlanner(self.settings)
+        self.risk = RiskKernel(self.settings)
         self._lock = threading.Lock()
         self.last_bars: dict[str, list[dict[str, object]]] = {}
 
-    def run_cycle(self, symbol: str | None = None, strategy: str = "auto", preview_only: bool = False) -> CycleReport:
+    def update_control(self, payload: dict[str, object]) -> RuntimeControl:
+        with self._lock:
+            control = validate_control(payload, self.base_settings, self.control)
+            settings = effective_settings(self.base_settings, control)
+            settings.validate()
+            self.control = control
+            self.settings = settings
+            self.planner = StrategyPlanner(settings)
+            self.risk = RiskKernel(settings)
+            save_control(self.store, control)
+            return control
+
+    def run_cycle(self, symbol: str | None = None, strategy: str | None = None, preview_only: bool = False) -> CycleReport:
         if not self._lock.acquire(blocking=False):
             raise RuntimeError("A decision cycle is already running")
         started = datetime.now(timezone.utc)
@@ -57,12 +73,13 @@ class TradingEngine:
                 {"timestamp": item.timestamp.isoformat(), "close": item.close}
                 for item in bars[-80:]
             ]
+            selected_strategy = strategy or self.control.strategy
             features = build_features(
                 selected,
                 bars,
                 fast_period=self.settings.fast_ema,
                 slow_period=self.settings.slow_ema,
-                strategy=strategy,
+                strategy=selected_strategy,
             )
             thesis = deterministic_thesis(features)
             if features.data_age_seconds > self.settings.max_data_age_seconds:
@@ -248,6 +265,8 @@ class TradingEngine:
             account = to_primitive(state)
         except Exception as exc:
             account = {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}
+        public_settings = self.settings.public_dict()
+        public_settings["available_underlyings"] = list(self.base_settings.underlyings)
         return {
             "project": {
                 "name": "GlassBox Alpha",
@@ -255,13 +274,51 @@ class TradingEngine:
                 "track": "Options Alpha Agents",
                 "paper_only": True,
             },
-            "settings": self.settings.public_dict(),
+            "settings": public_settings,
+            "control": self.control.public_dict(),
+            "review": self.review_state(),
             "health": self.broker.health(),
             "account": account,
             "kill_switch": self.store.kill_switch_engaged,
             "stats": self.store.stats(),
             "recent": self.store.recent_meaningful(20),
             "charts": self.last_bars,
+        }
+
+    def review_state(self) -> dict[str, object]:
+        records = self.store.recent(250)
+        returns: list[float] = []
+        for record in records:
+            if record.get("status") not in {"exit_submitted", "exit_required_preview"}:
+                continue
+            for note in record.get("notes") or []:
+                match = re.search(r"Observed spread return:\s*([+-]?\d+(?:\.\d+)?)%", str(note))
+                if match:
+                    returns.append(float(match.group(1)) / 100)
+                    break
+        sample = len(returns)
+        average = sum(returns) / sample if sample else None
+        wins = sum(value > 0 for value in returns)
+        proposed: dict[str, object] = {}
+        if sample < 10:
+            verdict = "hold"
+            reason = "Fewer than 10 completed structures; changing parameters would be overfitting."
+        elif average is not None and average < 0:
+            verdict = "tighten"
+            proposed["min_signal_score"] = min(0.60, round(self.control.min_signal_score + 0.02, 2))
+            reason = "Completed-structure expectancy is negative; propose a stricter entry threshold."
+        else:
+            verdict = "hold"
+            reason = "Observed expectancy is non-negative; retain the current bounded configuration."
+        return {
+            "completed_structures": sample,
+            "win_rate": wins / sample if sample else None,
+            "average_return": average,
+            "verdict": verdict,
+            "reason": reason,
+            "proposed_changes": proposed,
+            "auto_applied": False,
+            "owner_approval_required": True,
         }
 
     def supervise_positions(self) -> list[CycleReport]:

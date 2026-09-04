@@ -211,6 +211,11 @@ class AuditStore:
         except (TypeError, ValueError):
             return default
 
+    def get_runtime(self, key: str, default: str | None = None) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute("SELECT value FROM runtime_state WHERE key = ?", (key,)).fetchone()
+        return default if row is None else str(row["value"])
+
     def get_runtime_bool(self, key: str, default: bool = False) -> bool:
         with self._connect() as connection:
             row = connection.execute("SELECT value FROM runtime_state WHERE key = ?", (key,)).fetchone()

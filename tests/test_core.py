@@ -321,6 +321,43 @@ class StrategyAndRiskTests(Fixture):
 
 
 class EngineAndAuditTests(Fixture):
+    def test_owner_control_updates_effective_strategy_and_risk_settings(self) -> None:
+        updated = self.engine.update_control(
+            {
+                "strategy": "volatility_expansion",
+                "underlyings": ["SPY", "GLD"],
+                "min_signal_score": 0.32,
+                "risk_per_trade_pct": 0.001,
+                "max_option_exposure_pct": 0.005,
+                "max_trades_per_day": 4,
+                "max_positions": 2,
+                "max_hold_minutes": 60,
+                "profit_target_pct": 0.20,
+                "stop_loss_pct": 0.15,
+                "scan_interval_seconds": 600,
+                "enabled": True,
+            }
+        )
+        self.assertEqual(updated.strategy, "volatility_expansion")
+        self.assertEqual(self.engine.settings.underlyings, ("SPY", "GLD"))
+        self.assertEqual(self.engine.settings.risk_per_trade_pct, 0.001)
+        report = self.engine.run_cycle("SPY", preview_only=True)
+        self.assertEqual(report.features.strategy, "volatility_expansion")
+
+    def test_owner_control_rejects_risk_limit_bypass(self) -> None:
+        with self.assertRaisesRegex(ValueError, "risk_per_trade_pct"):
+            self.engine.update_control({"risk_per_trade_pct": 0.01})
+        with self.assertRaisesRegex(ValueError, "underlyings"):
+            self.engine.update_control({"underlyings": ["BTC"]})
+        self.assertEqual(self.engine.control.risk_per_trade_pct, self.settings.risk_per_trade_pct)
+
+    def test_owner_control_persists_across_engine_rebuild(self) -> None:
+        saved = self.engine.update_control({"enabled": False, "strategy": "mean_reversion"})
+        rebuilt = TradingEngine(self.settings, DemoBroker(self.settings), DeterministicCritic(), self.store)
+        self.assertFalse(rebuilt.control.enabled)
+        self.assertEqual(rebuilt.control.strategy, "mean_reversion")
+        self.assertEqual(rebuilt.control.version, saved.version)
+
     def test_public_preview_override_never_submits_in_paper_mode(self) -> None:
         paper_settings = replace(
             self.settings,

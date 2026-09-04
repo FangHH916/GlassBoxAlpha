@@ -20,11 +20,23 @@ type RuntimeReport = {
   thesis?: { summary: string; source: string; stance: string; confidence: number } | null;
   audit?: { record_hash: string; previous_hash: string; sequence: number };
 };
+type RuntimeControl = {
+  enabled: boolean; strategy: string; underlyings: string[]; min_signal_score: number;
+  risk_per_trade_pct: number; max_option_exposure_pct: number; max_trades_per_day: number;
+  max_positions: number; max_hold_minutes: number; profit_target_pct: number;
+  stop_loss_pct: number; scan_interval_seconds: number; version: number; updated_at: string;
+};
+type StrategyReview = {
+  completed_structures: number; win_rate?: number | null; average_return?: number | null;
+  verdict: string; reason: string; proposed_changes: Partial<RuntimeControl>;
+  auto_applied: false; owner_approval_required: true;
+};
 type RuntimeState = {
   connected: true; fetched_at: string;
-  settings: { mode: string; execution_mode: string; underlyings: string[]; strategies?: string[]; ai_provider: string; ai_model?: string | null; signal_model: string; min_signal_score: number; option_feed: string; paper_execution_unlocked: boolean };
+  settings: { mode: string; execution_mode: string; underlyings: string[]; available_underlyings?: string[]; strategies?: string[]; ai_provider: string; ai_model?: string | null; signal_model: string; min_signal_score: number; option_feed: string; paper_execution_unlocked: boolean };
   health: Record<string, unknown>; account: RuntimeAccount; kill_switch: boolean;
   stats: { total_cycles: number; by_status: Record<string, number>; audit_chain_valid: boolean; audit_records: number };
+  control: RuntimeControl; review: StrategyReview;
   recent: RuntimeReport[]; charts: Record<string, Array<{ timestamp: string; close: number }>>;
 };
 type ConnectionPhase = 'connecting' | 'waking' | 'online' | 'offline';
@@ -54,6 +66,11 @@ export default function Home() {
   const [chatInput, setChatInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [ownerToken, setOwnerToken] = useState('');
+  const [ownerUnlocked, setOwnerUnlocked] = useState(false);
+  const [controlDraft, setControlDraft] = useState<RuntimeControl | null>(null);
+  const [controlNotice, setControlNotice] = useState('');
+  const [controlBusy, setControlBusy] = useState(false);
 
   async function refreshRuntime() {
     try {
@@ -92,6 +109,10 @@ export default function Home() {
     void poll();
     return () => { active = false; window.clearTimeout(timer); };
   }, []);
+
+  useEffect(() => {
+    if (runtime?.control && !ownerUnlocked) setControlDraft(runtime.control);
+  }, [runtime?.control, ownerUnlocked]);
 
   const runtimeOnline = connectionPhase === 'online';
   const runtimeWaking = connectionPhase === 'waking' || connectionPhase === 'connecting';
@@ -133,6 +154,38 @@ export default function Home() {
     finally { setChatBusy(false); }
   }
 
+  async function unlockOwner(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!ownerToken.trim() || controlBusy) return;
+    setControlBusy(true); setControlNotice('');
+    try {
+      const response = await fetch('/api/control', { headers: { Authorization: `Bearer ${ownerToken.trim()}` }, cache: 'no-store' });
+      const payload = await response.json() as RuntimeControl & { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Owner authorization failed');
+      setControlDraft(payload); setOwnerUnlocked(true); setControlNotice('Owner controls unlocked for this tab only.');
+    } catch (error) { setOwnerUnlocked(false); setControlNotice(error instanceof Error ? error.message : 'Authorization failed'); }
+    finally { setControlBusy(false); }
+  }
+
+  async function saveControl(next?: RuntimeControl) {
+    const value = next ?? controlDraft;
+    if (!value || !ownerUnlocked || controlBusy) return;
+    setControlBusy(true); setControlNotice('');
+    try {
+      const { version: _version, updated_at: _updatedAt, ...editable } = value;
+      const response = await fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ownerToken.trim()}` }, body: JSON.stringify(editable) });
+      const payload = await response.json() as RuntimeControl & { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Control update failed');
+      setControlDraft(payload); setControlNotice(`Configuration v${payload.version} applied to the autonomous Paper agent.`);
+      await refreshRuntime();
+    } catch (error) { setControlNotice(error instanceof Error ? error.message : 'Control update failed'); }
+    finally { setControlBusy(false); }
+  }
+
+  function setControl<K extends keyof RuntimeControl>(key: K, value: RuntimeControl[K]) {
+    setControlDraft((current) => current ? { ...current, [key]: value } : current);
+  }
+
   const decisionTone = selected?.risk?.approved ? 'pass' : selected?.status.includes('error') ? 'error' : 'abstain';
   const decisionLabel = selected?.risk?.approved ? 'APPROVED' : selected ? readable(selected.status) : 'NO RUN';
 
@@ -161,6 +214,29 @@ export default function Home() {
           <article><span>DAILY P&amp;L</span><b className={(account?.daily_pnl ?? 0) >= 0 ? 'positive' : 'negative'}>{signedMoney(account?.daily_pnl)}</b><small>Reported by broker</small></article>
           <article><span>OPTION EXPOSURE</span><b>{money(account?.option_market_value)}</b><small>{account ? `${account.open_option_positions} open positions` : '—'}</small></article>
           <article><span>PAPER TRADES TODAY</span><b>{account?.trades_today ?? '—'}</b><small>{runtime ? `${runtime.stats.audit_records} audit records total` : '—'}</small></article>
+        </section>
+
+        <section className="ownerConsole" aria-label="Autonomous agent strategy controls">
+          <div className="panelHeader"><div><span className="kicker">AUTONOMOUS PAPER AGENT</span><h2>Strategy &amp; risk control</h2></div><div className={`agentMode ${runtime?.control?.enabled ? 'running' : ''}`}><i /><span>{runtime?.control?.enabled ? 'RUNNING' : 'PAUSED'}</span><small>CONFIG v{runtime?.control?.version ?? '—'}</small></div></div>
+          <div className="controlOverview">
+            <div><span>ACTIVE STRATEGY</span><b>{readable(runtime?.control?.strategy)}</b></div><div><span>SCAN</span><b>{runtime?.control ? `${runtime.control.scan_interval_seconds / 60} MIN` : '—'}</b></div><div><span>UNIVERSE</span><b>{runtime?.control?.underlyings?.join(' · ') || '—'}</b></div><div><span>ENTRY / EXPOSURE</span><b>{runtime?.control ? `${(runtime.control.risk_per_trade_pct * 100).toFixed(2)}% / ${(runtime.control.max_option_exposure_pct * 100).toFixed(2)}%` : '—'}</b></div>
+          </div>
+          {!ownerUnlocked ? <form className="ownerLogin" onSubmit={unlockOwner}><div><b>OWNER CONTROL</b><span>Public visitors can inspect and preview. Only the account owner can change strategy or route autonomous Paper orders.</span></div><input type="password" value={ownerToken} onChange={(event) => setOwnerToken(event.target.value)} placeholder="Owner control token" autoComplete="current-password" /><button type="submit" disabled={controlBusy || !ownerToken.trim()}>{controlBusy ? 'VERIFYING…' : 'UNLOCK'}</button></form> : controlDraft && <div className="ownerEditor">
+            <div className="field"><label>STRATEGY</label><select value={controlDraft.strategy} onChange={(event) => setControl('strategy', event.target.value)}>{runtime?.settings.strategies?.map((strategy) => <option key={strategy} value={strategy}>{readable(strategy)}</option>)}</select></div>
+            <div className="field"><label>MIN SIGNAL</label><input type="number" min="0.20" max="0.60" step="0.01" value={controlDraft.min_signal_score} onChange={(event) => setControl('min_signal_score', Number(event.target.value))} /></div>
+            <div className="field"><label>RISK / TRADE</label><input type="number" min="0.0005" max="0.0025" step="0.0005" value={controlDraft.risk_per_trade_pct} onChange={(event) => setControl('risk_per_trade_pct', Number(event.target.value))} /></div>
+            <div className="field"><label>TOTAL EXPOSURE</label><input type="number" min="0.0025" max="0.01" step="0.0025" value={controlDraft.max_option_exposure_pct} onChange={(event) => setControl('max_option_exposure_pct', Number(event.target.value))} /></div>
+            <div className="field"><label>TRADES / DAY</label><input type="number" min="1" max="8" step="1" value={controlDraft.max_trades_per_day} onChange={(event) => setControl('max_trades_per_day', Number(event.target.value))} /></div>
+            <div className="field"><label>MAX STRUCTURES</label><input type="number" min="1" max="3" step="1" value={controlDraft.max_positions} onChange={(event) => setControl('max_positions', Number(event.target.value))} /></div>
+            <div className="field"><label>MAX HOLD (MIN)</label><input type="number" min="30" max="120" step="15" value={controlDraft.max_hold_minutes} onChange={(event) => setControl('max_hold_minutes', Number(event.target.value))} /></div>
+            <div className="field"><label>TAKE PROFIT</label><input type="number" min="0.10" max="0.50" step="0.05" value={controlDraft.profit_target_pct} onChange={(event) => setControl('profit_target_pct', Number(event.target.value))} /></div>
+            <div className="field"><label>STOP LOSS</label><input type="number" min="0.10" max="0.25" step="0.01" value={controlDraft.stop_loss_pct} onChange={(event) => setControl('stop_loss_pct', Number(event.target.value))} /></div>
+            <div className="field"><label>SCAN INTERVAL</label><select value={controlDraft.scan_interval_seconds} onChange={(event) => setControl('scan_interval_seconds', Number(event.target.value))}><option value={300}>5 MIN</option><option value={600}>10 MIN</option><option value={900}>15 MIN</option><option value={1800}>30 MIN</option><option value={3600}>60 MIN</option></select></div>
+            <div className="symbolField"><label>SYMBOLS</label><div>{(runtime?.settings.available_underlyings ?? runtime?.settings.underlyings ?? []).map((symbol) => <label key={symbol}><input type="checkbox" checked={controlDraft.underlyings.includes(symbol)} onChange={(event) => setControl('underlyings', event.target.checked ? [...controlDraft.underlyings, symbol] : controlDraft.underlyings.filter((item) => item !== symbol))} />{symbol}</label>)}</div></div>
+            <div className="controlActions"><button type="button" onClick={() => void saveControl()} disabled={controlBusy || !controlDraft.underlyings.length}>{controlBusy ? 'APPLYING…' : 'APPLY CONFIG'}</button><button className={controlDraft.enabled ? 'pause' : 'start'} type="button" onClick={() => { const next = { ...controlDraft, enabled: !controlDraft.enabled }; setControlDraft(next); void saveControl(next); }} disabled={controlBusy}>{controlDraft.enabled ? 'PAUSE NEW ENTRIES' : 'START AUTONOMOUS'}</button></div>
+          </div>}
+          <div className="reviewStrip"><div><span>AGENT REVIEW</span><b>{readable(runtime?.review?.verdict)}</b><p>{runtime?.review?.reason ?? 'Waiting for runtime evidence.'}</p></div><div><span>COMPLETED / WIN RATE / AVG</span><b>{runtime?.review ? `${runtime.review.completed_structures} / ${runtime.review.win_rate == null ? '—' : `${(runtime.review.win_rate * 100).toFixed(0)}%`} / ${runtime.review.average_return == null ? '—' : `${(runtime.review.average_return * 100).toFixed(1)}%`}` : '—'}</b><small>Recommendations are never auto-applied. Owner approval is required.</small></div></div>
+          {controlNotice && <p className="controlNotice">{controlNotice}</p>}
         </section>
 
         <section className="controlGrid">

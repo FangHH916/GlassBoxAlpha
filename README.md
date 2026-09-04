@@ -2,7 +2,7 @@
 
 > An AI options agent you can audit before it trades.
 
-GlassBox Alpha is a paper-only autonomous options agent built for the **Alpaca AI Trading Agents Hackathon — Options Alpha Agents track**. It constructs defined-risk SPY/QQQ option candidates in deterministic code, gives an AI critic veto-only authority, reruns every hard risk gate, and executes approved orders through the official Alpaca CLI or `alpaca-py`.
+GlassBox Alpha is a paper-only autonomous options agent built for the **Alpaca AI Trading Agents Hackathon — Options Alpha Agents track**. It constructs defined-risk option candidates across a liquid US ETF universe in deterministic code, gives an AI critic veto-only authority, reruns every hard risk gate, and executes approved orders through the official Alpaca CLI or `alpaca-py`.
 
 The central idea is simple: **AI may say no, but it cannot change the trade.**
 
@@ -85,7 +85,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. With the Python runtime connected, the console shows the real Paper account, runs SPY/QQQ cycles, explains the latest audit record through DeepSeek, and lets judges inspect historical Trade Passports. It displays an explicit offline state instead of substituting mock broker data.
+Open `http://localhost:3000`. With the Python runtime connected, the console shows the real Paper account, previews real-data decisions, explains the latest audit record through DeepSeek, and lets judges inspect historical Trade Passports. It displays an explicit offline state instead of substituting mock broker data.
 
 ## Connect read-only Alpaca paper data
 
@@ -161,26 +161,28 @@ Every watch iteration first reconciles open option positions and evaluates exit 
 
 The public Strategy Lab can preview `auto`, `trend_pullback`, `volatility_expansion`, `momentum_breakout`, and `mean_reversion` against real Alpaca evidence. Its API forces `execution_mode=preview`, even when the private runtime is configured for Paper orders. Public users can compare strategies and ask DeepSeek about the resulting audit record, but cannot submit orders or alter the owner's production router. Only walk-forward-qualified strategies are admitted to production `auto`.
 
+The dashboard also exposes the active autonomous configuration. An owner-only control token unlocks bounded changes to strategy, ETF universe, signal threshold, risk budget, position/trade caps, exit policy and scan interval, plus start/pause control for new entries. Changes are validated again by the Python runtime and persisted in its SQLite runtime state. The review panel measures completed structures and may propose a stricter entry threshold after a sufficient sample; it never applies a recommendation without owner approval. `Paper-only`, defined-risk construction, daily loss/drawdown circuits, the kill switch and the maximum safety envelope cannot be disabled from the browser.
+
 ## Entry policy
 
 - Only completed five-minute bars are used.
 - EMA 20/50 defines the medium trend; five-bar momentum and RSI require a short-term pullback before entry.
 - `abs(signal) >= 0.20` and deterministic confidence `>= 0.64` are required. The threshold was selected on the training segment of the expanded liquid-ETF validation universe; the out-of-sample segment remained isolated.
 - Weak signals exit before the option-chain request or DeepSeek review, avoiding repeated model calls for ineligible candidates.
-- SPY and QQQ only by default.
+- Eight liquid US ETFs are available: SPY, QQQ, GLD, IWM, DIA, TLT, XLF and SMH.
 - 7–21 DTE; target long delta `0.55`, short delta `0.30`.
 - Each leg needs bid/ask, open interest `>= 500`, spread `<= 12%`, and a fresh timestamp.
 - Level 3 uses one atomic MLeg debit spread. Level 2 may only buy a single long option at half risk budget.
 
 ## Hard risk limits
 
-- Maximum loss per entry: `0.50%` of equity.
+- Maximum loss per entry: `0.25%` of equity.
 - Total open option risk: `1.00%` of equity.
 - Daily loss circuit: `1.25%`.
 - Peak drawdown circuit: `3.00%`.
-- Maximum open structures: `1`.
+- Maximum open structures: `3`.
 - Maximum contracts: `3`.
-- Maximum new entries per day: `3`.
+- Maximum new entries per day: `8`.
 - Minimum 45 minutes before the regular close.
 - No 0DTE, naked short, credit strategy, market order, extended-hours order, or leg-by-leg vertical.
 - Persistent kill switch blocks every new candidate.
@@ -198,8 +200,8 @@ glassbox-alpha resume
 
 Whole structures are closed atomically—never one leg at a time—when any of these occurs:
 
-- spread return reaches `+35%`;
-- spread return reaches `-25%`;
+- spread return reaches `+25%`;
+- spread return reaches `-18%`;
 - holding time reaches the configured 75-minute maximum;
 - 35 minutes remain before close;
 - deterministic signal becomes neutral or reverses.
@@ -224,8 +226,10 @@ Local API routes:
 
 - `GET /health`
 - `GET /api/dashboard`
+- `GET /api/control`
 - `GET /api/passports/{run_id}`
 - `POST /api/cycle` with `{"symbol":"SPY"}`
+- `POST /api/control` with a bounded owner configuration
 - `POST /api/kill-switch` with `{"engaged":true}`
 
 The local API binds to `127.0.0.1` by default and cannot alter execution mode.
@@ -246,7 +250,7 @@ Tests cover paper-only configuration, the execution interlock, candidate constru
 
 The repository includes `render.yaml` for a GitHub-connected free Render Blueprint. It builds the official Alpaca CLI into the image and runs the authenticated API and five-minute scanner in one process. The free service sleeps when idle and stores SQLite audit data only on its ephemeral filesystem, so decisions and the kill switch may be reset after a restart or redeploy. For continuous autonomous monitoring and durable Trade Passports, upgrade the service and attach a persistent disk mounted at `/var/data`.
 
-After the Blueprint is live, copy its generated `AGENT_API_TOKEN` into the frontend's server-side environment and set `AGENT_API_URL` to the service's `https://...onrender.com` URL. Never prefix either variable with `NEXT_PUBLIC_`.
+After the Blueprint is live, copy its generated `AGENT_API_TOKEN` into the frontend's server-side environment and set `AGENT_API_URL` to the service's `https://...onrender.com` URL. Set a separate high-entropy `OWNER_CONTROL_TOKEN` only on the Cloudflare deployment; the owner enters it in the browser to authorize a control change, while the backend credential remains hidden. Never prefix any of these variables with `NEXT_PUBLIC_`.
 
 ## Important limitations
 

@@ -17,7 +17,7 @@ def serve(
     port: int = 8787,
     watch_interval: int = 0,
 ) -> None:
-    """Serve a small local control API. It never changes execution mode at runtime."""
+    """Serve the paper-agent API with authenticated, bounded strategy controls."""
 
     if engine.settings.paper_execution_unlocked and not engine.settings.agent_api_token:
         raise PermissionError("AGENT_API_TOKEN is required while paper-order execution is unlocked")
@@ -75,6 +75,10 @@ def serve(
                 if not self._require_authorization():
                     return
                 self._json(engine.dashboard_state())
+            elif path == "/api/control":
+                if not self._require_authorization():
+                    return
+                self._json(engine.control.public_dict())
             elif path.startswith("/api/passports/"):
                 if not self._require_authorization():
                     return
@@ -97,6 +101,8 @@ def serve(
                     symbol = str(body.get("symbol") or engine.settings.underlyings[0]).upper()
                     strategy = str(body.get("strategy") or "auto").strip().lower()
                     self._json(to_primitive(engine.run_cycle(symbol, strategy=strategy, preview_only=True)))
+                elif path == "/api/control":
+                    self._json(engine.update_control(body).public_dict())
                 elif path == "/api/kill-switch":
                     engaged = body.get("engaged")
                     if not isinstance(engaged, bool):
@@ -118,18 +124,17 @@ def serve(
     def autonomous_loop() -> None:
         # The signal uses completed five-minute bars. A shorter loop only
         # repeats identical evidence, spends API quota, and bloats the ledger.
-        interval = max(300, watch_interval)
         while not stop_event.is_set():
             try:
                 for report in engine.supervise_positions():
                     print(f"{report.completed_at.isoformat()} {report.symbol} {report.status}", flush=True)
-                if engine.broker.get_account().market_open:
-                    for symbol in engine.settings.underlyings:
-                        report = engine.run_cycle(symbol)
+                if engine.control.enabled and engine.broker.get_account().market_open:
+                    for symbol in engine.control.underlyings:
+                        report = engine.run_cycle(symbol, strategy=engine.control.strategy)
                         print(f"{report.completed_at.isoformat()} {symbol} {report.status}", flush=True)
             except Exception as exc:
                 print(f"Autonomous scan failed closed: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
-            stop_event.wait(interval)
+            stop_event.wait(max(300, engine.control.scan_interval_seconds, watch_interval))
 
     server = ThreadingHTTPServer((host, port), Handler)
     watcher = None
@@ -138,7 +143,7 @@ def serve(
         watcher.start()
 
     print(f"GlassBox Alpha local API: http://{host}:{port}")
-    print("Execution mode is fixed at process startup; this API cannot unlock trading.")
+    print("Paper execution is fixed at startup; owner controls cannot enable live trading or bypass hard risk limits.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
