@@ -13,7 +13,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from glassbox_alpha.audit import AuditStore
-from glassbox_alpha.broker import AlpacaBroker, DemoBroker, _close_order_payload, _order_payload
+from glassbox_alpha.broker import (
+    AlpacaBroker,
+    DemoBroker,
+    _close_order_payload,
+    _option_portfolio_metrics,
+    _order_payload,
+)
 from glassbox_alpha.config import Settings
 from glassbox_alpha.critic import DeepSeekCritic, DeterministicCritic, _extract_output_text
 from glassbox_alpha.engine import TradingEngine
@@ -75,7 +81,7 @@ class ConfigTests(unittest.TestCase):
     def test_legacy_primary_universe_gets_validated_expansion(self) -> None:
         with patch.dict(os.environ, {"UNDERLYINGS": "SPY,QQQ"}, clear=True):
             settings = Settings.from_env(Path.cwd())
-        self.assertEqual(settings.underlyings, ("SPY", "QQQ", "GLD", "IWM"))
+        self.assertEqual(settings.underlyings, ("SPY", "QQQ", "GLD", "IWM", "DIA", "TLT", "XLF", "SMH"))
 
     def test_live_mode_is_not_supported(self) -> None:
         with patch.dict(os.environ, {"BROKER_MODE": "live"}, clear=True):
@@ -150,7 +156,29 @@ class StrategyAndRiskTests(Fixture):
         )
         self.assertTrue(decision.approved)
         self.assertTrue(all(item.passed for item in decision.checks))
-        self.assertEqual(len(decision.checks), 33)
+        self.assertEqual(len(decision.checks), 34)
+
+    def test_vertical_counts_as_one_structure_and_uses_defined_risk(self) -> None:
+        positions = [
+            SimpleNamespace(symbol="GLD260918C00410000", qty="2", avg_entry_price="9.45"),
+            SimpleNamespace(symbol="GLD260918C00415000", qty="-2", avg_entry_price="7.00"),
+        ]
+        structures, risk, underlyings = _option_portfolio_metrics(positions)
+        self.assertEqual(structures, 1)
+        self.assertEqual(risk, 490.0)
+        self.assertEqual(underlyings, ("GLD",))
+
+    def test_defined_risk_not_gross_leg_value_controls_portfolio_limit(self) -> None:
+        account, features, proposal, critic = self.candidate()
+        decision = RiskKernel(self.settings).evaluate(
+            proposal,
+            features,
+            critic,
+            replace(account, option_market_value=10_000, option_risk_exposure=400),
+            duplicate=False,
+            kill_switch=False,
+        )
+        self.assertTrue(decision.approved)
 
     def test_tampered_economics_and_symbol_are_rejected(self) -> None:
         account, features, proposal, critic = self.candidate()
@@ -242,6 +270,45 @@ class StrategyAndRiskTests(Fixture):
         self.assertEqual(close.status, "accepted")
         self.assertEqual(len(broker.trading.requests[0].legs), 2)
         self.assertEqual(float(broker.trading.requests[1].limit_price), -3.25)
+
+    def test_alpaca_recovers_open_vertical_from_broker_truth(self) -> None:
+        _, _, proposal, _ = self.candidate()
+        bars = self.broker.get_bars("SPY")
+        raw_legs = [
+            SimpleNamespace(
+                symbol=leg.contract.symbol,
+                position_intent=leg.action.value,
+                side="buy" if leg.action is LegAction.BUY_TO_OPEN else "sell",
+            )
+            for leg in proposal.legs
+        ]
+        order = SimpleNamespace(
+            client_order_id=proposal.proposal_id,
+            legs=raw_legs,
+            filled_qty=str(proposal.quantity),
+            qty=str(proposal.quantity),
+            filled_avg_price=str(proposal.limit_debit),
+            filled_at=proposal.created_at,
+            created_at=proposal.created_at,
+        )
+        trading = SimpleNamespace(get_orders=lambda _request: [order])
+        broker = AlpacaBroker.__new__(AlpacaBroker)
+        broker.settings = self.settings
+        broker.trading = trading
+        signed = {
+            leg.contract.symbol: float(proposal.quantity if leg.action is LegAction.BUY_TO_OPEN else -proposal.quantity)
+            for leg in proposal.legs
+        }
+        with (
+            patch.object(broker, "get_open_positions", return_value=signed),
+            patch.object(broker, "get_bars", return_value=bars),
+            patch.object(broker, "get_option_chain", return_value=[leg.contract for leg in proposal.legs]),
+        ):
+            recovered = broker.recover_open_proposals()
+        self.assertEqual(len(recovered), 1)
+        self.assertEqual(recovered[0].proposal_id, proposal.proposal_id)
+        self.assertEqual(recovered[0].structure, proposal.structure)
+        self.assertEqual(recovered[0].quantity, proposal.quantity)
 
 
 class EngineAndAuditTests(Fixture):

@@ -34,7 +34,7 @@ GlassBox Alpha separates candidate generation from AI judgment. Completed five-m
 
 ### Risk gates
 
-The deterministic risk kernel is evaluated after the AI and immediately before execution. Default limits are 0.50% equity maximum loss per entry, 1.00% total option exposure, 1.25% daily loss, 3.00% peak drawdown, one open structure, three contracts and three entries per day. Only long options or atomic call/put debit verticals are accepted. Contracts must be 7–21 DTE, active, tradable and liquid, with two-sided fresh quotes, open interest at least 500 and spread no wider than 12%. The system blocks 0DTE, naked shorts, market orders, credit trades, extended hours and leg-by-leg spreads. A persistent kill switch and candidate-hash idempotency provide operational safety.
+The deterministic risk kernel is evaluated after the AI and immediately before execution. Production limits are 0.25% equity maximum loss per new entry, 1.00% total defined-risk exposure, 1.25% daily loss, 3.00% peak drawdown, three concurrent structures, three contracts per entry and eight entries per day. Alpaca legs are paired into logical structures, so a vertical counts once and contributes its defined maximum loss rather than gross leg market value. Only long options or atomic call/put debit verticals are accepted. Contracts must be 7–21 DTE, active, tradable and liquid, with two-sided fresh quotes, open interest at least 500 and spread no wider than 12%. The system blocks 0DTE, naked shorts, market orders, credit trades, extended hours, same-underlying stacking and leg-by-leg spreads. A persistent kill switch, broker pending-order lock and candidate-hash idempotency provide operational safety.
 
 ### Alpaca infrastructure
 

@@ -215,12 +215,15 @@ class TradingEngine:
         high = self.store.update_high_watermark(account.equity, f"high_watermark:{account_key}")
         baseline_key = f"competition_balance_verified:{account_key}"
         baseline_verified = self.store.get_runtime_bool(baseline_key)
+        baseline_balance_matches = any(
+            abs(value - self.settings.competition_starting_balance) < 0.01
+            for value in (account.equity, account.last_equity)
+        )
         clean_start = (
             not baseline_verified
             and account.competition_account_match
             and account.competition_account_fresh
-            and account.open_option_positions == 0
-            and abs(account.equity - self.settings.competition_starting_balance) < 0.01
+            and baseline_balance_matches
         )
         if clean_start:
             baseline_verified = True
@@ -273,6 +276,8 @@ class TradingEngine:
                 proposal_raw = saved.get("proposal")
                 if isinstance(proposal_raw, dict):
                     entries.setdefault(str(proposal_raw["proposal_id"]), proposal_raw)
+            for recovered in self.broker.recover_open_proposals():
+                entries.setdefault(recovered.proposal_id, to_primitive(recovered))
             account = self._account_with_local_state(self.broker.get_account())
             for proposal_raw in entries.values():
                 proposal = proposal_from_primitive(proposal_raw)
@@ -296,22 +301,25 @@ class TradingEngine:
                 if not all(leg.contract.symbol in quotes for leg in proposal.legs):
                     continue
                 if len(proposal.legs) == 1:
-                    exit_credit = quotes[proposal.legs[0].contract.symbol].midpoint
+                    # Sell a long option at its bid so the capped exit is marketable.
+                    exit_credit = quotes[proposal.legs[0].contract.symbol].bid
                 else:
+                    # Natural closing credit: sell the long leg at bid and buy
+                    # the short leg at ask. Do not assume a midpoint fill.
                     exit_credit = max(
                         0.01,
-                        quotes[proposal.legs[0].contract.symbol].midpoint
-                        - quotes[proposal.legs[1].contract.symbol].midpoint,
+                        quotes[proposal.legs[0].contract.symbol].bid
+                        - quotes[proposal.legs[1].contract.symbol].ask,
                     )
                 pnl_pct = exit_credit / proposal.limit_debit - 1
                 age_minutes = (datetime.now(timezone.utc) - proposal.created_at.astimezone(timezone.utc)).total_seconds() / 60
                 reason = None
-                if pnl_pct >= 0.35:
-                    reason = "profit_target_35pct"
-                elif pnl_pct <= -0.25:
-                    reason = "stop_loss_25pct"
-                elif age_minutes >= 120:
-                    reason = "maximum_holding_time_120m"
+                if pnl_pct >= self.settings.profit_target_pct:
+                    reason = f"profit_target_{self.settings.profit_target_pct:.0%}"
+                elif pnl_pct <= -self.settings.stop_loss_pct:
+                    reason = f"stop_loss_{self.settings.stop_loss_pct:.0%}"
+                elif age_minutes >= self.settings.max_hold_minutes:
+                    reason = f"maximum_holding_time_{self.settings.max_hold_minutes}m"
                 elif account.minutes_to_close is not None and account.minutes_to_close <= 35:
                     reason = "closing_bell_exit"
                 elif abs(features.signal_score) < 0.15 or features.baseline_stance is not proposal.direction:

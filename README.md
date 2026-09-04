@@ -157,7 +157,7 @@ Or run autonomous monitoring:
 glassbox-alpha watch --interval 300
 ```
 
-Every watch iteration first reconciles open option positions and evaluates exit policy. Entry scans run only while the regular market is open, on a minimum five-minute interval matching the completed bars. Entry is limited to three trades per day and one open option structure.
+Every watch iteration first reconciles open option positions and evaluates exit policy. Entry scans run only while the regular market is open, on a five-minute interval matching the completed bars. Production scans eight validated liquid ETFs, permits at most eight entries per day and three concurrent defined-risk structures, while preventing multiple structures on the same underlying. Per-entry risk is reduced to 0.25% so the total defined-risk budget remains capped at 1.00%.
 
 ## Entry policy
 
@@ -198,7 +198,7 @@ Whole structures are closed atomically—never one leg at a time—when any of t
 
 - spread return reaches `+35%`;
 - spread return reaches `-25%`;
-- holding time reaches 120 minutes;
+- holding time reaches the configured 75-minute maximum;
 - 35 minutes remain before close;
 - deterministic signal becomes neutral or reverses.
 

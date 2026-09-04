@@ -15,7 +15,21 @@ services:
       - key: UNDERLYINGS
         value: SPY,QQQ
       - key: ADDITIONAL_UNDERLYINGS
-        value: GLD,IWM
+        value: GLD,IWM,DIA,TLT,XLF,SMH
+      - key: RISK_PER_TRADE_PCT
+        value: "0.0025"
+      - key: MAX_OPTION_EXPOSURE_PCT
+        value: "0.01"
+      - key: MAX_TRADES_PER_DAY
+        value: "8"
+      - key: MAX_OPTION_POSITIONS
+        value: "3"
+      - key: MAX_HOLD_MINUTES
+        value: "75"
+      - key: PROFIT_TARGET_PCT
+        value: "0.25"
+      - key: STOP_LOSS_PCT
+        value: "0.18"
       - key: APCA_API_KEY_ID
         sync: false
       - key: APCA_API_SECRET_KEY

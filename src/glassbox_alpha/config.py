@@ -30,7 +30,7 @@ def _csv(name: str, default: str) -> tuple[str, ...]:
 
 def _underlyings() -> tuple[str, ...]:
     primary = _csv("UNDERLYINGS", "SPY,QQQ")
-    additional = _csv("ADDITIONAL_UNDERLYINGS", "GLD,IWM")
+    additional = _csv("ADDITIONAL_UNDERLYINGS", "GLD,IWM,DIA,TLT,XLF,SMH")
     return tuple(dict.fromkeys((*primary, *additional)))
 
 
@@ -39,7 +39,7 @@ class Settings:
     project_root: Path
     mode: str = "demo"
     execution_mode: str = "preview"
-    underlyings: tuple[str, ...] = ("SPY", "QQQ", "GLD", "IWM")
+    underlyings: tuple[str, ...] = ("SPY", "QQQ", "GLD", "IWM", "DIA", "TLT", "XLF", "SMH")
     alpaca_api_key: str | None = None
     alpaca_api_secret: str | None = None
     deepseek_api_key: str | None = None
@@ -57,15 +57,18 @@ class Settings:
     min_open_interest: int = 500
     max_quote_spread_pct: float = 0.12
     max_quote_age_seconds: int = 30
-    risk_per_trade_pct: float = 0.005
+    risk_per_trade_pct: float = 0.0025
     max_option_exposure_pct: float = 0.01
     max_daily_loss_pct: float = 0.0125
     max_drawdown_pct: float = 0.03
-    max_trades_per_day: int = 3
-    max_positions: int = 1
+    max_trades_per_day: int = 8
+    max_positions: int = 3
     max_contracts_per_trade: int = 3
     max_data_age_seconds: int = 900
     min_minutes_to_close: int = 45
+    max_hold_minutes: int = 75
+    profit_target_pct: float = 0.25
+    stop_loss_pct: float = 0.18
     competition_starting_balance: float = 100_000.0
     allow_paper_orders: bool = False
     paper_confirmation: str | None = None
@@ -104,15 +107,18 @@ class Settings:
             min_open_interest=_int("MIN_OPEN_INTEREST", 500),
             max_quote_spread_pct=_float("MAX_QUOTE_SPREAD_PCT", 0.12),
             max_quote_age_seconds=_int("MAX_QUOTE_AGE_SECONDS", 30),
-            risk_per_trade_pct=_float("RISK_PER_TRADE_PCT", 0.005),
+            risk_per_trade_pct=_float("RISK_PER_TRADE_PCT", 0.0025),
             max_option_exposure_pct=_float("MAX_OPTION_EXPOSURE_PCT", 0.01),
             max_daily_loss_pct=_float("MAX_DAILY_LOSS_PCT", 0.0125),
             max_drawdown_pct=_float("MAX_DRAWDOWN_PCT", 0.03),
-            max_trades_per_day=_int("MAX_TRADES_PER_DAY", 3),
-            max_positions=_int("MAX_OPTION_POSITIONS", 1),
+            max_trades_per_day=_int("MAX_TRADES_PER_DAY", 8),
+            max_positions=_int("MAX_OPTION_POSITIONS", 3),
             max_contracts_per_trade=_int("MAX_CONTRACTS_PER_TRADE", 3),
             max_data_age_seconds=_int("MAX_DATA_AGE_SECONDS", 900),
             min_minutes_to_close=_int("MIN_MINUTES_TO_CLOSE", 45),
+            max_hold_minutes=_int("MAX_HOLD_MINUTES", 75),
+            profit_target_pct=_float("PROFIT_TARGET_PCT", 0.25),
+            stop_loss_pct=_float("STOP_LOSS_PCT", 0.18),
             competition_starting_balance=_float("COMPETITION_STARTING_BALANCE", 100_000.0),
             allow_paper_orders=_bool("ALLOW_PAPER_ORDERS", False),
             paper_confirmation=os.getenv("PAPER_ORDER_CONFIRMATION"),
@@ -156,6 +162,10 @@ class Settings:
             raise ValueError("Data freshness limits must be positive")
         if min(self.max_trades_per_day, self.max_positions, self.max_contracts_per_trade) < 1:
             raise ValueError("Trade, position, and contract limits must be positive")
+        if self.max_hold_minutes < 15:
+            raise ValueError("MAX_HOLD_MINUTES must be at least 15")
+        if not 0 < self.profit_target_pct <= 1 or not 0 < self.stop_loss_pct <= 1:
+            raise ValueError("Profit target and stop loss must be between 0 and 1")
         competition_start = datetime.fromisoformat(self.competition_start_utc.replace("Z", "+00:00"))
         if competition_start.tzinfo is None:
             raise ValueError("COMPETITION_START_UTC must include a timezone")
@@ -189,4 +199,6 @@ class Settings:
             "max_daily_loss_pct": self.max_daily_loss_pct,
             "max_drawdown_pct": self.max_drawdown_pct,
             "max_trades_per_day": self.max_trades_per_day,
+            "max_option_structures": self.max_positions,
+            "max_hold_minutes": self.max_hold_minutes,
         }

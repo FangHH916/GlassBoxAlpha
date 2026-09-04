@@ -76,7 +76,8 @@ class RiskKernel:
         required_level = 3 if len(proposal.legs) > 1 else 2
         add("option_level", "Options permission", account.options_trading_level >= required_level, "Account permission must support the structure.", account.options_trading_level, required_level)
         add("pending_orders", "Pending-order lock", account.pending_orders == 0, "Wait for every existing competition-account order to reach a terminal state before opening new risk.", account.pending_orders, 0)
-        add("position_limit", "Position limit", account.open_option_positions < self.settings.max_positions, "Cap simultaneous option positions.", account.open_option_positions, self.settings.max_positions)
+        add("position_limit", "Structure limit", account.open_option_structures < self.settings.max_positions, "Cap simultaneous defined-risk option structures, not individual legs.", account.open_option_structures, self.settings.max_positions)
+        add("symbol_concentration", "Underlying concentration", proposal.underlying not in account.open_option_underlyings, "Do not stack multiple option structures on the same underlying.", proposal.underlying in account.open_option_underlyings, False)
         add("trade_limit", "Daily trade limit", account.trades_today < self.settings.max_trades_per_day, "Cap new entries per session.", account.trades_today, self.settings.max_trades_per_day)
 
         daily_floor = -account.equity * self.settings.max_daily_loss_pct
@@ -84,7 +85,7 @@ class RiskKernel:
         add("drawdown", "Peak drawdown circuit", account.drawdown_pct < self.settings.max_drawdown_pct, "Peak-to-current equity circuit breaker.", round(account.drawdown_pct, 4), self.settings.max_drawdown_pct)
         per_trade_limit = account.equity * self.settings.risk_per_trade_pct
         add("max_loss", "Maximum loss", proposal.max_loss <= per_trade_limit, "Defined max loss must fit the per-trade budget.", proposal.max_loss, round(per_trade_limit, 2))
-        total_after = account.option_market_value + proposal.max_loss
+        total_after = account.option_risk_exposure + proposal.max_loss
         exposure_limit = account.equity * self.settings.max_option_exposure_pct
         add("portfolio_risk", "Portfolio risk", total_after <= exposure_limit, "Existing option exposure plus max loss stays capped.", round(total_after, 2), round(exposure_limit, 2))
         add("contract_count", "Contract count", 1 <= proposal.quantity <= self.settings.max_contracts_per_trade, "Contracts must be a small positive integer.", proposal.quantity, self.settings.max_contracts_per_trade)

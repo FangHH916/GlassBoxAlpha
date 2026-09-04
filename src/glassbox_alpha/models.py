@@ -155,6 +155,9 @@ class AccountState:
     competition_account_fresh: bool = True
     competition_balance_verified: bool = True
     pending_orders: int = 0
+    open_option_structures: int = 0
+    option_risk_exposure: float = 0.0
+    open_option_underlyings: tuple[str, ...] = ()
 
     @property
     def drawdown_pct(self) -> float:

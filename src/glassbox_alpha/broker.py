@@ -4,6 +4,7 @@ import json
 import math
 import os
 import random
+import re
 import shutil
 import subprocess
 from datetime import date, datetime, timedelta, timezone
@@ -15,8 +16,11 @@ from .models import (
     Bar,
     LegAction,
     OptionContractQuote,
+    OptionLeg,
     OptionType,
     OrderReceipt,
+    ResearchThesis,
+    Stance,
     TradeProposal,
 )
 
@@ -34,7 +38,69 @@ class Broker(Protocol):
 
     def get_open_positions(self) -> dict[str, float]: ...
 
+    def recover_open_proposals(self) -> list[TradeProposal]: ...
+
     def health(self) -> dict[str, object]: ...
+
+
+_OCC_PATTERN = re.compile(r"^([A-Z]{1,6})(\d{6})([CP])(\d{8})$")
+
+
+def _option_portfolio_metrics(positions: list[object]) -> tuple[int, float, tuple[str, ...]]:
+    """Count logical option structures and their entry-defined maximum risk.
+
+    Alpaca reports each vertical leg as a separate position. Pair compatible
+    long/short legs so a 1:1 vertical consumes one structure slot and its net
+    debit/defined loss, rather than two slots and both legs' gross market value.
+    Unknown or uncovered short structures fail closed with a very large risk.
+    """
+    groups: dict[tuple[str, str, str], list[dict[str, float | str]]] = {}
+    roots: set[str] = set()
+    for position in positions:
+        symbol = str(getattr(position, "symbol", ""))
+        match = _OCC_PATTERN.fullmatch(symbol)
+        if match is None:
+            return max(1, len(positions)), 1_000_000_000.0, tuple(sorted(roots))
+        root, expiry, right, strike_raw = match.groups()
+        roots.add(root)
+        groups.setdefault((root, expiry, right), []).append(
+            {
+                "symbol": symbol,
+                "strike": int(strike_raw) / 1000,
+                "qty": float(getattr(position, "qty", 0)),
+                "entry": float(getattr(position, "avg_entry_price", 0) or 0),
+            }
+        )
+
+    structures = 0
+    risk = 0.0
+    for (_root, _expiry, right), legs in groups.items():
+        if len(legs) == 2 and float(legs[0]["qty"]) * float(legs[1]["qty"]) < 0:
+            long_leg = next(item for item in legs if float(item["qty"]) > 0)
+            short_leg = next(item for item in legs if float(item["qty"]) < 0)
+            long_qty = float(long_leg["qty"])
+            short_qty = abs(float(short_leg["qty"]))
+            paired = min(long_qty, short_qty)
+            width = abs(float(long_leg["strike"]) - float(short_leg["strike"]))
+            net_debit = (float(long_leg["entry"]) - float(short_leg["entry"])) * 100 * paired
+            is_debit_vertical = (
+                (right == "C" and float(long_leg["strike"]) < float(short_leg["strike"]))
+                or (right == "P" and float(long_leg["strike"]) > float(short_leg["strike"]))
+            )
+            structures += 1
+            risk += max(0.0, net_debit if is_debit_vertical else width * 100 * paired + net_debit)
+            if long_qty > paired:
+                structures += 1
+                risk += (long_qty - paired) * float(long_leg["entry"]) * 100
+            if short_qty > paired:
+                structures += 1
+                risk += 1_000_000_000.0
+            continue
+        structures += len(legs)
+        for leg in legs:
+            quantity = float(leg["qty"])
+            risk += quantity * float(leg["entry"]) * 100 if quantity > 0 else 1_000_000_000.0
+    return structures, round(risk, 2), tuple(sorted(roots))
 
 
 class DemoBroker:
@@ -170,6 +236,9 @@ class DemoBroker:
     def get_open_positions(self) -> dict[str, float]:
         return {}
 
+    def recover_open_proposals(self) -> list[TradeProposal]:
+        return []
+
     def health(self) -> dict[str, object]:
         return {
             "broker": "deterministic replay",
@@ -218,6 +287,7 @@ class AlpacaBroker:
         competition_start = datetime.fromisoformat(self.settings.competition_start_utc.replace("Z", "+00:00"))
         option_positions = [item for item in positions if item.asset_class == AssetClass.US_OPTION]
         option_market_value = sum(abs(float(item.market_value or 0)) for item in option_positions)
+        open_structures, option_risk, open_underlyings = _option_portfolio_metrics(option_positions)
         timestamp = _aware(clock.timestamp)
         next_close = _aware(clock.next_close)
         minutes_to_close = max(0, int((next_close - timestamp).total_seconds() // 60)) if clock.is_open else None
@@ -246,6 +316,9 @@ class AlpacaBroker:
             competition_account_fresh=created_at >= competition_start,
             competition_balance_verified=False,
             pending_orders=pending_orders,
+            open_option_structures=open_structures,
+            option_risk_exposure=option_risk,
+            open_option_underlyings=open_underlyings,
         )
 
     def get_bars(self, symbol: str, limit: int = 120) -> list[Bar]:
@@ -367,6 +440,93 @@ class AlpacaBroker:
             for item in self.trading.get_all_positions()
             if item.asset_class == AssetClass.US_OPTION
         }
+
+    def recover_open_proposals(self) -> list[TradeProposal]:
+        """Rebuild agent-owned open entries from Alpaca after ephemeral restarts."""
+        from alpaca.trading.enums import QueryOrderStatus
+        from alpaca.trading.requests import GetOrdersRequest
+
+        positions = self.get_open_positions()
+        if not positions:
+            return []
+        orders = self.trading.get_orders(
+            GetOrdersRequest(status=QueryOrderStatus.CLOSED, limit=100, nested=True)
+        )
+        recovered: list[TradeProposal] = []
+        for order in orders:
+            client_order_id = str(getattr(order, "client_order_id", ""))
+            if not client_order_id.startswith("gba-") or client_order_id.endswith("-x"):
+                continue
+            raw_legs = list(getattr(order, "legs", None) or [order])
+            if not raw_legs or any(
+                not str(getattr(leg, "position_intent", "")).lower().endswith("to_open")
+                for leg in raw_legs
+            ):
+                continue
+            symbols = [str(getattr(leg, "symbol", "")) for leg in raw_legs]
+            matches = [_OCC_PATTERN.fullmatch(symbol) for symbol in symbols]
+            if any(match is None for match in matches):
+                continue
+            underlying = matches[0].group(1)  # type: ignore[union-attr]
+            if any(match.group(1) != underlying for match in matches if match is not None):
+                continue
+            quantity = int(float(getattr(order, "filled_qty", 0) or getattr(order, "qty", 0) or 0))
+            signed = {
+                symbol: quantity if str(getattr(leg, "side", "")).lower().endswith("buy") else -quantity
+                for symbol, leg in zip(symbols, raw_legs)
+            }
+            if quantity < 1 or any(positions.get(symbol) != expected for symbol, expected in signed.items()):
+                continue
+            bars = self.get_bars(underlying, limit=120)
+            chain = {item.symbol: item for item in self.get_option_chain(underlying, bars[-1].close)}
+            if any(symbol not in chain for symbol in symbols):
+                continue
+            option_legs = [
+                OptionLeg(
+                    chain[symbol],
+                    LegAction.BUY_TO_OPEN if expected > 0 else LegAction.SELL_TO_OPEN,
+                )
+                for symbol, expected in signed.items()
+            ]
+            option_type = option_legs[0].contract.option_type
+            if len(option_legs) == 1:
+                stance = Stance.BULLISH if option_type is OptionType.CALL else Stance.BEARISH
+                structure = "long_call" if stance is Stance.BULLISH else "long_put"
+            else:
+                long_leg = next(leg for leg in option_legs if leg.action is LegAction.BUY_TO_OPEN)
+                stance = Stance.BULLISH if option_type is OptionType.CALL else Stance.BEARISH
+                structure = "bull_call_debit_spread" if stance is Stance.BULLISH else "bear_put_debit_spread"
+            limit_debit = abs(float(getattr(order, "filled_avg_price", 0) or 0))
+            if limit_debit <= 0:
+                continue
+            width = abs(option_legs[0].contract.strike - option_legs[1].contract.strike) if len(option_legs) == 2 else None
+            thesis = ResearchThesis(
+                stance=stance,
+                confidence=1.0,
+                horizon_days=3,
+                summary="Recovered from the authenticated Alpaca Paper fill after a service restart.",
+                catalysts=["Broker-native filled order and matching open positions"],
+                risks=["Recovered state is used for deterministic exit supervision only"],
+                invalidation="Managed by the configured exit policy.",
+                source="alpaca_order_recovery",
+            )
+            recovered.append(
+                TradeProposal(
+                    proposal_id=client_order_id,
+                    created_at=_aware(getattr(order, "filled_at", None) or getattr(order, "created_at")),
+                    underlying=underlying,
+                    direction=stance,
+                    structure=structure,
+                    legs=option_legs,
+                    quantity=quantity,
+                    limit_debit=limit_debit,
+                    max_loss=round(limit_debit * 100 * quantity, 2),
+                    max_profit=(round((width - limit_debit) * 100 * quantity, 2) if width is not None else None),
+                    thesis=thesis,
+                    rationale="Recovered from Alpaca broker truth; no new entry authority is granted.",
+                )
+            )
+        return recovered
 
     def _submit_cli(self, proposal: TradeProposal) -> OrderReceipt:
         return self._submit_cli_payload(_order_payload(proposal), proposal, closing=False)
