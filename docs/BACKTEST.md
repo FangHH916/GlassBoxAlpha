@@ -39,3 +39,7 @@ Production therefore uses `0.20` and a smaller liquid subset—SPY, QQQ, GLD, an
 ## Important limitation
 
 This is signal validation, not an options-P&L backtest. It does not model option premiums, implied volatility, Greeks, bid/ask spreads, multi-leg fill quality, DeepSeek vetoes, or the live option-chain gates. The free Indicative options feed is derived rather than actual OPRA quotes, so converting these underlying returns into claimed option returns would be misleading. Paper fills also do not establish live execution quality or future profitability.
+
+## Multi-strategy admission
+
+The public Strategy Lab exposes trend-pullback, volatility-expansion, momentum-breakout, and mean-reversion for read-only previews. A strategy does not enter the production `auto` router merely because it exists. On the eight-ETF, 120-day walk-forward rerun, volatility-expansion was rejected: its best training candidates remained negative and the 0.20 threshold produced -8.574% training and -5.595% out-of-sample compounded underlying proxy returns. Production `auto` therefore remains trend-pullback until another strategy passes the same isolated validation rule.

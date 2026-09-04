@@ -66,6 +66,7 @@ def build_features(
     fast_period: int = 20,
     slow_period: int = 50,
     now: datetime | None = None,
+    strategy: str = "auto",
 ) -> MarketFeatures:
     if len(bars) < slow_period + 1:
         raise ValueError(f"Need at least {slow_period + 1} bars, received {len(bars)}")
@@ -82,10 +83,29 @@ def build_features(
     trend_component = _clip((fast / slow - 1) / 0.015) if slow else 0.0
     momentum_component = _clip(momentum / 0.04)
     rsi_component = _clip((rsi_value - 50) / 25)
-    # Trade in the direction of the medium trend after a short-term pullback.
-    # The weights were selected on the first 70% of a 120-day SPY/QQQ sample;
-    # the final 30% remained isolated for out-of-sample validation.
-    score = _clip(0.50 * trend_component - 0.25 * momentum_component - 0.25 * rsi_component)
+    recent_high = max(closes[-20:])
+    recent_low = min(closes[-20:])
+    breakout = _clip(2 * (spot - recent_low) / max(recent_high - recent_low, 0.0001) - 1)
+    short_vol = realized_volatility(closes, 10)
+    long_vol = realized_volatility(closes, 40)
+    volatility_ratio = short_vol / long_vol if long_vol > 0 else 1.0
+    expansion_weight = _clip((volatility_ratio - 0.85) / 0.65, 0.0, 1.0)
+    scores = {
+        "trend_pullback": _clip(0.50 * trend_component - 0.25 * momentum_component - 0.25 * rsi_component),
+        "volatility_expansion": _clip((0.50 * breakout + 0.30 * momentum_component + 0.20 * trend_component) * expansion_weight),
+        "momentum_breakout": _clip(0.45 * trend_component + 0.35 * momentum_component + 0.20 * rsi_component),
+        "mean_reversion": _clip(-0.55 * momentum_component - 0.45 * rsi_component),
+    }
+    if strategy == "auto":
+        # Production AUTO admits only walk-forward-qualified strategies.
+        # Volatility expansion remains available in the public preview lab,
+        # but its current training and OOS proxy results do not justify orders.
+        selected_strategy = "trend_pullback"
+    elif strategy in scores:
+        selected_strategy = strategy
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
+    score = scores[selected_strategy]
     baseline = Stance.BULLISH if score >= 0.18 else Stance.BEARISH if score <= -0.18 else Stance.NEUTRAL
 
     current = now or datetime.now(timezone.utc)
@@ -106,4 +126,8 @@ def build_features(
         signal_score=round(score, 6),
         data_age_seconds=round(age, 2),
         baseline_stance=baseline,
+        strategy=selected_strategy,
+        strategy_scores={key: round(value, 6) for key, value in scores.items()},
+        volatility_ratio=round(volatility_ratio, 4),
+        breakout_20bar=round(breakout, 4),
     )

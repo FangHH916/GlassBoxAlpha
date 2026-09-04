@@ -67,6 +67,15 @@ class IndicatorTests(unittest.TestCase):
         self.assertGreaterEqual(features.signal_score, settings.min_signal_score)
         self.assertLess(features.data_age_seconds, 10)
 
+    def test_every_user_strategy_produces_auditable_features(self) -> None:
+        broker = DemoBroker(Settings(project_root=Path.cwd()))
+        bars = broker.get_bars("SPY")
+        for strategy in ("trend_pullback", "volatility_expansion", "momentum_breakout", "mean_reversion"):
+            features = build_features("SPY", bars, strategy=strategy)
+            self.assertEqual(features.strategy, strategy)
+            self.assertEqual(set(features.strategy_scores), {"trend_pullback", "volatility_expansion", "momentum_breakout", "mean_reversion"})
+            self.assertGreater(features.volatility_ratio, 0)
+
     def test_demo_clock_refreshes_after_idle_time(self) -> None:
         settings = Settings(project_root=Path.cwd())
         broker = DemoBroker(settings)
@@ -312,6 +321,23 @@ class StrategyAndRiskTests(Fixture):
 
 
 class EngineAndAuditTests(Fixture):
+    def test_public_preview_override_never_submits_in_paper_mode(self) -> None:
+        paper_settings = replace(
+            self.settings,
+            mode="alpaca",
+            execution_mode="paper",
+            allow_paper_orders=True,
+            paper_confirmation="I_UNDERSTAND_PAPER_ONLY",
+            competition_account_id="competition-account",
+        )
+        broker = DemoBroker(paper_settings)
+        engine = TradingEngine(paper_settings, broker, DeterministicCritic(), self.store)
+        with patch.object(broker, "submit", side_effect=AssertionError("public preview must never submit")):
+            report = engine.run_cycle("SPY", strategy="trend_pullback", preview_only=True)
+        self.assertEqual(report.execution_mode, "preview")
+        self.assertEqual(report.status, "approved_preview")
+        self.assertEqual(report.orders, [])
+
     def test_supervisor_does_not_submit_while_market_closed_or_order_pending(self) -> None:
         with patch.object(
             self.broker,

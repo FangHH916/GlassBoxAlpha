@@ -159,6 +159,8 @@ glassbox-alpha watch --interval 300
 
 Every watch iteration first reconciles open option positions and evaluates exit policy. Entry scans run only while the regular market is open, on a five-minute interval matching the completed bars. Production scans eight validated liquid ETFs, permits at most eight entries per day and three concurrent defined-risk structures, while preventing multiple structures on the same underlying. Per-entry risk is reduced to 0.25% so the total defined-risk budget remains capped at 1.00%.
 
+The public Strategy Lab can preview `auto`, `trend_pullback`, `volatility_expansion`, `momentum_breakout`, and `mean_reversion` against real Alpaca evidence. Its API forces `execution_mode=preview`, even when the private runtime is configured for Paper orders. Public users can compare strategies and ask DeepSeek about the resulting audit record, but cannot submit orders or alter the owner's production router. Only walk-forward-qualified strategies are admitted to production `auto`.
+
 ## Entry policy
 
 - Only completed five-minute bars are used.

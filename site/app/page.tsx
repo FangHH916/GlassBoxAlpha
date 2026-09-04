@@ -13,7 +13,7 @@ type RuntimeAccount = {
 };
 type RuntimeReport = {
   run_id: string; created_at: string; status: string; symbol: string; mode: string; execution_mode: string;
-  features?: { spot: number; signal_score: number; baseline_stance: string; rsi_14: number; timestamp: string } | null;
+  features?: { spot: number; signal_score: number; baseline_stance: string; rsi_14: number; timestamp: string; strategy?: string; volatility_ratio?: number; breakout_20bar?: number } | null;
   proposal?: { proposal_id: string; structure: string; max_loss: number; max_profit?: number | null; quantity: number } | null;
   critic?: { verdict: string; thesis: string; source: string; model?: string | null } | null;
   risk?: { approved: boolean; summary: string; checks: RiskCheck[] } | null;
@@ -22,7 +22,7 @@ type RuntimeReport = {
 };
 type RuntimeState = {
   connected: true; fetched_at: string;
-  settings: { mode: string; execution_mode: string; underlyings: string[]; ai_provider: string; ai_model?: string | null; signal_model: string; min_signal_score: number; option_feed: string; paper_execution_unlocked: boolean };
+  settings: { mode: string; execution_mode: string; underlyings: string[]; strategies?: string[]; ai_provider: string; ai_model?: string | null; signal_model: string; min_signal_score: number; option_feed: string; paper_execution_unlocked: boolean };
   health: Record<string, unknown>; account: RuntimeAccount; kill_switch: boolean;
   stats: { total_cycles: number; by_status: Record<string, number>; audit_chain_valid: boolean; audit_records: number };
   recent: RuntimeReport[]; charts: Record<string, Array<{ timestamp: string; close: number }>>;
@@ -49,6 +49,7 @@ export default function Home() {
   const wakeStartedAt = useRef<number | null>(null);
   const [cycleBusy, setCycleBusy] = useState('');
   const [cycleNotice, setCycleNotice] = useState('');
+  const [selectedStrategy, setSelectedStrategy] = useState('auto');
   const [selectedRunId, setSelectedRunId] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatBusy, setChatBusy] = useState(false);
@@ -110,10 +111,10 @@ export default function Home() {
     if (!runtime || !runtimeOnline || cycleBusy) return;
     setCycleBusy(symbol); setCycleNotice('');
     try {
-      const response = await fetch('/api/runtime', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol }) });
+      const response = await fetch('/api/runtime', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol, strategy: selectedStrategy }) });
       const payload = await response.json() as RuntimeReport & { error?: string };
       if (!response.ok) throw new Error(payload.error || 'Agent cycle failed');
-      setCycleNotice(`${symbol} cycle completed: ${readable(payload.status)}. No order is sent unless every gate passes.`);
+      setCycleNotice(`${symbol} ${readable(selectedStrategy)} preview: ${readable(payload.status)}. Public previews never submit orders.`);
       await refreshRuntime(); setSelectedRunId(payload.run_id);
     } catch (error) { setCycleNotice(error instanceof Error ? error.message : 'Agent cycle failed'); }
     finally { setCycleBusy(''); }
@@ -124,7 +125,7 @@ export default function Home() {
     if (!question || chatBusy) return;
     setMessages((current) => [...current, { role: 'user', content: question }]); setChatInput(''); setChatBusy(true);
     try {
-      const response = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question }) });
+      const response = await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, strategy: selectedStrategy }) });
       const payload = await response.json() as { answer?: string; model?: string; error?: string };
       if (!response.ok || !payload.answer) throw new Error(payload.error || 'Agent unavailable');
       setMessages((current) => [...current, { role: 'agent', content: payload.answer!, model: payload.model }]);
@@ -165,18 +166,19 @@ export default function Home() {
         <section className="controlGrid">
           <div className="leftColumn">
             <article className="agentControl">
-              <div className="panelHeader"><div><span className="kicker">LIVE AGENT</span><h2>Run one decision cycle</h2></div><span className={`marketBadge ${account?.market_open ? 'open' : ''}`}>{account ? (account.market_open ? 'MARKET OPEN' : 'MARKET CLOSED') : 'NO BROKER'}</span></div>
+              <div className="panelHeader"><div><span className="kicker">STRATEGY LAB</span><h2>Preview a real-data decision</h2></div><span className="marketBadge">PREVIEW ONLY</span></div>
               <div className="pipeline" aria-label="Agent pipeline">
                 {[[ '01', 'MARKET', 'Completed bars' ], [ '02', 'PROPOSE', 'Defined risk' ], [ '03', 'CRITIC', 'DeepSeek veto' ], [ '04', 'RISK', 'Hard gates' ], [ '05', 'EXECUTE', 'Alpaca Paper' ]].map(([number, title, note]) => <div key={number}><span>{number}</span><b>{title}</b><small>{note}</small></div>)}
               </div>
-              <div className="runRow"><div>{runtime?.settings.underlyings?.map((symbol) => <button key={symbol} type="button" onClick={() => void runLiveCycle(symbol)} disabled={!runtimeOnline || !account?.market_open || Boolean(cycleBusy)}>{cycleBusy === symbol ? 'RUNNING…' : `RUN ${symbol}`}</button>)}</div><p>{cycleNotice || (!runtimeOnline ? 'Controls unlock automatically after the live Agent connection is verified.' : account && !account.market_open ? 'Entry scans pause while the regular market is closed.' : 'A neutral signal safely abstains. Paper execution requires every layer to approve.')}</p></div>
+              <div className="strategyPicker"><label htmlFor="strategy">STRATEGY</label><select id="strategy" value={selectedStrategy} onChange={(event) => setSelectedStrategy(event.target.value)}>{(runtime?.settings.strategies ?? ['auto']).map((strategy) => <option key={strategy} value={strategy}>{readable(strategy)}</option>)}</select><span>Uses live Alpaca evidence · cannot submit orders</span></div>
+              <div className="runRow"><div>{runtime?.settings.underlyings?.map((symbol) => <button key={symbol} type="button" onClick={() => void runLiveCycle(symbol)} disabled={!runtimeOnline || Boolean(cycleBusy)}>{cycleBusy === symbol ? 'RUNNING…' : `PREVIEW ${symbol}`}</button>)}</div><p>{cycleNotice || (!runtimeOnline ? 'Controls unlock automatically after the Agent connection is verified.' : 'Choose any strategy and symbol. This public workspace is always preview-only.')}</p></div>
             </article>
 
             <article className="decisionCard">
               <div className="panelHeader"><div><span className="kicker">SELECTED DECISION</span><h2>{selected ? `${selected.symbol} · ${readable(selected.features?.baseline_stance ?? selected.status)}` : 'No decision recorded'}</h2></div><div className={`decisionBadge ${decisionTone}`}><span>{decisionLabel}</span><small>{selected?.execution_mode ? readable(selected.execution_mode) : 'WAITING'}</small></div></div>
               <div className="decisionBody">
                 <div className="marketEvidence">
-                  <div className="evidenceValues"><div><span>SPOT</span><b>{money(selected?.features?.spot)}</b></div><div><span>SIGNAL</span><b>{selected?.features?.signal_score?.toFixed(3) ?? '—'}</b></div><div><span>RSI 14</span><b>{selected?.features?.rsi_14?.toFixed(1) ?? '—'}</b></div><div><span>DATA TIME</span><b>{selected?.features?.timestamp?.slice(11, 19) ?? '—'}</b></div></div>
+                  <div className="evidenceValues"><div><span>STRATEGY</span><b>{readable(selected?.features?.strategy)}</b></div><div><span>SIGNAL</span><b>{selected?.features?.signal_score?.toFixed(3) ?? '—'}</b></div><div><span>VOL RATIO</span><b>{selected?.features?.volatility_ratio?.toFixed(2) ?? '—'}</b></div><div><span>BREAKOUT</span><b>{selected?.features?.breakout_20bar?.toFixed(2) ?? '—'}</b></div></div>
                   <div className="miniChart">{chartPath ? <svg viewBox="0 0 640 140" preserveAspectRatio="none" role="img" aria-label={`${chartSymbol} completed bars`}><path className="chartGrid" d="M0 20H640M0 70H640M0 120H640" /><path className="chartLine" d={`M ${chartPath}`} /></svg> : <span>Completed Alpaca bars appear after a cycle.</span>}</div>
                 </div>
                 <div className="decisionExplanation">

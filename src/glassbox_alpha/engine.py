@@ -32,12 +32,13 @@ class TradingEngine:
         self._lock = threading.Lock()
         self.last_bars: dict[str, list[dict[str, object]]] = {}
 
-    def run_cycle(self, symbol: str | None = None) -> CycleReport:
+    def run_cycle(self, symbol: str | None = None, strategy: str = "auto", preview_only: bool = False) -> CycleReport:
         if not self._lock.acquire(blocking=False):
             raise RuntimeError("A decision cycle is already running")
         started = datetime.now(timezone.utc)
         run_id = str(uuid4())
         selected = (symbol or self.settings.underlyings[0]).upper()
+        cycle_execution = "preview" if preview_only else self.settings.execution_mode
         account = None
         features = None
         thesis = None
@@ -61,6 +62,7 @@ class TradingEngine:
                 bars,
                 fast_period=self.settings.fast_ema,
                 slow_period=self.settings.slow_ema,
+                strategy=strategy,
             )
             thesis = deterministic_thesis(features)
             if features.data_age_seconds > self.settings.max_data_age_seconds:
@@ -71,7 +73,7 @@ class TradingEngine:
                         completed_at=datetime.now(timezone.utc),
                         status="abstained_stale_data",
                         mode=self.settings.mode,
-                        execution_mode=self.settings.execution_mode,
+                        execution_mode=cycle_execution,
                         symbol=selected,
                         features=features,
                         thesis=thesis,
@@ -89,7 +91,7 @@ class TradingEngine:
                         completed_at=datetime.now(timezone.utc),
                         status="abstained_neutral",
                         mode=self.settings.mode,
-                        execution_mode=self.settings.execution_mode,
+                        execution_mode=cycle_execution,
                         symbol=selected,
                         features=features,
                         thesis=thesis,
@@ -110,7 +112,7 @@ class TradingEngine:
                         completed_at=datetime.now(timezone.utc),
                         status="abstained_weak_signal",
                         mode=self.settings.mode,
-                        execution_mode=self.settings.execution_mode,
+                        execution_mode=cycle_execution,
                         symbol=selected,
                         features=features,
                         thesis=thesis,
@@ -133,7 +135,7 @@ class TradingEngine:
                         completed_at=datetime.now(timezone.utc),
                         status="abstained_no_contract",
                         mode=self.settings.mode,
-                        execution_mode=self.settings.execution_mode,
+                        execution_mode=cycle_execution,
                         symbol=selected,
                         features=features,
                         thesis=thesis,
@@ -154,7 +156,7 @@ class TradingEngine:
             )
             if not risk.approved:
                 status = "rejected"
-            elif self.settings.execution_mode == "preview":
+            elif cycle_execution == "preview":
                 status = "approved_preview"
             else:
                 submission_attempted = True
@@ -167,7 +169,7 @@ class TradingEngine:
                     completed_at=datetime.now(timezone.utc),
                     status=status,
                     mode=self.settings.mode,
-                    execution_mode=self.settings.execution_mode,
+                    execution_mode=cycle_execution,
                     symbol=selected,
                     features=features,
                     thesis=thesis,
@@ -196,7 +198,7 @@ class TradingEngine:
                 completed_at=datetime.now(timezone.utc),
                 status=status,
                 mode=self.settings.mode,
-                execution_mode=self.settings.execution_mode,
+                execution_mode=cycle_execution,
                 symbol=selected,
                 features=features,
                 thesis=thesis,

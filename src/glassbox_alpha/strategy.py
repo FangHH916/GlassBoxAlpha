@@ -24,9 +24,11 @@ def deterministic_thesis(features: MarketFeatures) -> ResearchThesis:
     direction = features.baseline_stance
     trend_pct = (features.ema_fast / features.ema_slow - 1) * 100 if features.ema_slow else 0.0
     catalysts = [
+        f"Strategy route is {features.strategy}",
         f"Fast/slow EMA spread is {trend_pct:+.2f}%",
         f"Five-bar momentum is {features.momentum_5bar * 100:+.2f}%",
         f"RSI(14) is {features.rsi_14:.1f}",
+        f"Short/long realized-volatility ratio is {features.volatility_ratio:.2f}",
     ]
     risks = [
         f"20-bar annualized realized volatility is {features.realized_vol_20bar * 100:.1f}%",
@@ -38,7 +40,7 @@ def deterministic_thesis(features: MarketFeatures) -> ResearchThesis:
         confidence=round(confidence, 3),
         horizon_days=3,
         summary=(
-            f"Completed-bar evidence is {direction.value} with normalized signal "
+            f"{features.strategy.replace('_', ' ').title()} evidence is {direction.value} with normalized signal "
             f"{features.signal_score:+.2f}."
         ),
         catalysts=catalysts,

@@ -46,12 +46,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { symbol?: string };
+    const body = await request.json() as { symbol?: string; strategy?: string };
     const symbol = String(body.symbol ?? '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 8);
+    const strategy = String(body.strategy ?? 'auto').toLowerCase().replace(/[^a-z_]/g, '').slice(0, 40);
     if (!symbol) return Response.json({ error: 'A symbol is required.' }, { status: 400 });
     const dashboard = await runtimeRequest('/api/dashboard');
     if (dashboard?.settings?.mode !== 'alpaca') return Response.json({ error: 'BROKER_MODE must be alpaca. Demo cycles are not exposed as live data.' }, { status: 503 });
-    const report = await runtimeRequest('/api/cycle', { method: 'POST', body: JSON.stringify({ symbol }) });
+    const report = await runtimeRequest('/api/preview-cycle', { method: 'POST', body: JSON.stringify({ symbol, strategy }) });
     return Response.json(report, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : 'Agent cycle failed' }, { status: 503 });

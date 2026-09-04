@@ -193,6 +193,8 @@ class Settings:
             "ai_provider": "DeepSeek" if self.use_deepseek else "deterministic fallback",
             "ai_model": self.ai_model if self.use_deepseek else None,
             "signal_model": "trend_pullback",
+            "strategies": ["auto", "trend_pullback", "volatility_expansion", "momentum_breakout", "mean_reversion"],
+            "production_strategies": ["trend_pullback"],
             "min_signal_score": self.min_signal_score,
             "option_feed": self.option_feed,
             "paper_execution_unlocked": self.paper_execution_unlocked,

@@ -25,8 +25,9 @@ function outputText(payload: unknown): string | null {
 export async function POST(request: Request) {
   let question = '';
   try {
-    const body = await request.json() as { question?: string };
+    const body = await request.json() as { question?: string; strategy?: string };
     question = String(body.question ?? '').trim().slice(0, 500);
+    if (body.strategy) question = `[User-selected strategy: ${String(body.strategy).slice(0, 40)}] ${question}`;
   } catch {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }

@@ -93,6 +93,10 @@ def serve(
                 if path == "/api/cycle":
                     symbol = str(body.get("symbol") or engine.settings.underlyings[0]).upper()
                     self._json(to_primitive(engine.run_cycle(symbol)))
+                elif path == "/api/preview-cycle":
+                    symbol = str(body.get("symbol") or engine.settings.underlyings[0]).upper()
+                    strategy = str(body.get("strategy") or "auto").strip().lower()
+                    self._json(to_primitive(engine.run_cycle(symbol, strategy=strategy, preview_only=True)))
                 elif path == "/api/kill-switch":
                     engaged = body.get("engaged")
                     if not isinstance(engaged, bool):

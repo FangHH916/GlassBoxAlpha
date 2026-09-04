@@ -91,6 +91,8 @@ def fetch_bars(symbol: str, days: int) -> list[Bar]:
 
 
 def model_score(features: object, model: str) -> float:
+    if model == "volatility_expansion":
+        return float(features.strategy_scores["volatility_expansion"])
     trend = max(-1.0, min(1.0, (features.ema_fast / features.ema_slow - 1) / 0.015))
     momentum = max(-1.0, min(1.0, features.momentum_5bar / 0.04))
     rsi_component = max(-1.0, min(1.0, (features.rsi_14 - 50) / 25))
@@ -178,7 +180,7 @@ def main() -> None:
     timestamps = sorted({bar.timestamp for bars in bars_by_symbol.values() for bar in bars})
     split = timestamps[int(len(timestamps) * 0.70)]
     thresholds = [0.12, 0.15, 0.18, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45]
-    models = ["current_trend", "slow_trend", "trend_pullback", "mean_reversion"]
+    models = ["current_trend", "slow_trend", "trend_pullback", "mean_reversion", "volatility_expansion"]
     rows = []
     for model in models:
         for threshold in thresholds:

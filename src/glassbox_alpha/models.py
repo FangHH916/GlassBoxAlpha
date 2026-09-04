@@ -48,6 +48,10 @@ class MarketFeatures:
     signal_score: float
     data_age_seconds: float
     baseline_stance: Stance
+    strategy: str = "trend_pullback"
+    strategy_scores: dict[str, float] = field(default_factory=dict)
+    volatility_ratio: float = 1.0
+    breakout_20bar: float = 0.0
 
 
 @dataclass(frozen=True)

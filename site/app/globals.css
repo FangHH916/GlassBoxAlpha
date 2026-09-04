@@ -65,6 +65,9 @@ h1 { margin:18px 0 15px; font-size:clamp(3rem,6.1vw,6.7rem); line-height:.9; let
 .runRow button:hover:not(:disabled) { transform:translate(2px,2px); box-shadow:1px 1px 0 var(--ink); }
 .runRow button:disabled { background:#dddcd4; color:#777; cursor:progress; box-shadow:none; }
 .runRow p { margin:0; color:var(--muted); font-size:10px; line-height:1.45; }
+.strategyPicker { padding:12px 16px; display:grid; grid-template-columns:auto minmax(180px,1fr) auto; align-items:center; gap:12px; border-top:1px solid var(--line); background:#f5f4ee; }
+.strategyPicker label,.strategyPicker span { color:var(--muted); font:700 8px var(--font-geist-mono),monospace; }
+.strategyPicker select { padding:9px 10px; border:1px solid var(--ink); background:#fff; color:var(--ink); font:700 9px var(--font-geist-mono),monospace; }
 .decisionBadge { min-width:145px; text-align:right; }
 .decisionBadge span { display:block; color:var(--amber); font:750 13px var(--font-geist-mono),monospace; }
 .decisionBadge small { color:var(--muted); font:650 8px var(--font-geist-mono),monospace; }
@@ -133,7 +136,7 @@ footer p { max-width:760px; margin:0; text-align:right; line-height:1.5; }
   .intro { min-height:0; grid-template-columns:1fr; gap:2rem; }.intro h1 { font-size:clamp(2.8rem,14vw,4.6rem); }.systemSummary { box-shadow:3px 3px 0 var(--forest); }
   .metrics { grid-template-columns:1fr 1fr; }.metrics article:nth-child(2) { border-right:0; }.metrics article:nth-child(-n+2) { border-bottom:1px solid var(--line); }
   .pipeline { grid-template-columns:1fr; }.pipeline div { grid-template-columns:30px .8fr 1fr; align-items:center; border-right:0; border-bottom:1px solid var(--line); }.pipeline div:last-child { border-bottom:0; }
-  .runRow,.offlinePanel { align-items:stretch; flex-direction:column; }.runRow > div { display:grid; grid-template-columns:1fr 1fr; }.runRow button { width:100%; }
+  .runRow,.offlinePanel { align-items:stretch; flex-direction:column; }.runRow > div { display:grid; grid-template-columns:1fr 1fr; }.runRow button { width:100%; }.strategyPicker { grid-template-columns:1fr; }
   .panelHeader { align-items:flex-start; flex-direction:column; }.decisionBadge { text-align:left; }.evidenceValues { grid-template-columns:1fr 1fr; }.evidenceValues div:nth-child(2) { border-right:0; }.evidenceValues div:nth-child(-n+2) { border-bottom:1px solid var(--line); }
   .auditGrid { display:block; }.recordHeader,.recordList button { grid-template-columns:1.3fr 1fr; }.recordHeader span:last-child,.recordList code { display:none; }.passportMeta { grid-template-columns:1fr 1fr; }.passportMeta span:nth-child(2) { border-right:0; }.passportMeta span:nth-child(-n+2) { border-bottom:1px solid var(--line); }.riskChecks { grid-template-columns:1fr; }.riskChecks > div { border-right:0; }
   .riskPolicy { display:grid; }.riskPolicy span,.riskPolicy b { border-right:0; border-bottom:1px solid #ffffff28; } footer { flex-direction:column; } footer p { text-align:left; }
